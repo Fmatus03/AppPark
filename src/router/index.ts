@@ -3,7 +3,7 @@ import { RouteRecordRaw } from 'vue-router';
 import HomePage from '../views/HomePage.vue';
 
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: '/login' },
+  { path: '/', redirect: '/NavBar-test' },
   { path: '/login', name: 'Login', component: HomePage },
   { path: '/register', name: 'Register', component: HomePage },
   { path: '/home', name: 'Home', component: HomePage },
@@ -11,6 +11,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/myIncidents', name: 'MyIncidents', component: HomePage },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
   { path: '/profile', name: 'Profile', component: HomePage },
+  { path: '/navBar-test', name: 'NavBarTest', component: () => import('../views/NavBarTest.vue'), },
 ]
 
 const router = createRouter({
