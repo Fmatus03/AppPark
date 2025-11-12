@@ -4,7 +4,7 @@ import HomePage from '../views/HomePage.vue';
 import HomeUser from '@/views/HomeUser.vue';
 
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: '/Home' },
+  { path: '/', redirect: '/home' },
   { path: '/login', name: 'Login', component: HomePage },
   { path: '/register', name: 'Register', component: HomePage },
   { path: '/home', name: 'Home', component: HomeUser },
@@ -12,6 +12,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/myIncidents', name: 'MyIncidents', component: HomePage },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
   { path: '/profile', name: 'Profile', component: HomePage },
+  { path: '/navBar-test', name: 'NavBarTest', component: () => import('../views/NavBarTest.vue'), },
 ]
 
 const router = createRouter({
