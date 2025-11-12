@@ -30,7 +30,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
 	{ label: 'Home', to: '/home', icon: homeOutline, match: /^\/home/ },
-	{ label: 'Mis Incidentes', to: '/myIncidents', icon: listOutline, match: /^\/(incidentLog|myIncidents)/ },
+	{ label: 'Mis Incidentes', to: '/myIncidents', icon: listOutline, match: /^\/myIncidents/ },
 	{ label: 'Perfil', to: '/profile', icon: personCircleOutline, match: /^\/profile/ },
 ];
 

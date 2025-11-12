@@ -9,10 +9,12 @@
 			<div class="map-container">
 				<div ref="mapRef" class="leaflet-map"></div>
 			</div>
-			<IonButton class="incident-button" shape="round" @click="goToIncidentLog">
-				<IonIcon slot="start" :icon="add" />
-				Registrar Incidente
-			</IonButton>
+			<div slot="fixed" class="incident-button-wrapper">
+				<IonButton class="incident-button" shape="round" @click="goToIncidentLog">
+					<IonIcon slot="start" :icon="add" />
+					Registrar Incidente
+				</IonButton>
+			</div>
     </IonContent>
   </IonPage>
 </template>
@@ -33,7 +35,7 @@ let marker: L.Marker | null = null;
 const router = useRouter();
 
 const goToIncidentLog = () => {
-  router.push({ name: 'IncidentLog' });
+	router.push({ name: 'IncidentLog' });
 };
 
 const defaultIcon = L.icon({
@@ -131,14 +133,21 @@ onBeforeUnmount(async () => {
 	width: 100%;
 }
 
-.incident-button {
-	position: absolute;
+
+.incident-button-wrapper {
+	position: fixed;
 	right: 1rem;
-	bottom: calc(env(safe-area-inset-bottom, 0) + 1rem);
-	z-index: 1000;
+	bottom: calc(env(safe-area-inset-bottom, 0) + 5rem);
+	z-index: 1300;
+}
+
+:global(.has-mobile-navbar) .incident-button-wrapper {
+	bottom: calc(env(safe-area-inset-bottom, 0) + 5.5rem);
+}
+
+.incident-button {
 	--background: #24b34b;
 	--background-hover: #1f9a3f;
-	--border-radius: 999px;
 	--box-shadow: 0 6px 16px rgba(36, 179, 75, 0.35);
 	font-weight: 600;
 	letter-spacing: 0.01em;
