@@ -38,4 +38,16 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+
+    <!-- Acceder al almacenamiento del celular y editarlo -->
+     <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- Voice recorder -->  
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 </manifest>

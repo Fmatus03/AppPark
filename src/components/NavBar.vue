@@ -30,7 +30,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
 	{ label: 'Home', to: '/home', icon: homeOutline, match: /^\/home/ },
-	{ label: 'Mis Incidentes', to: '/myIncidents', icon: listOutline, match: /^\/(incidentLog|myIncidents)/ },
+	{ label: 'Mis Incidentes', to: '/myIncidents', icon: listOutline, match: /^\/myIncidents/ },
 	{ label: 'Perfil', to: '/profile', icon: personCircleOutline, match: /^\/profile/ },
 ];
 
@@ -57,6 +57,10 @@ const navItemIsActive = (item: NavItem) => {
 	padding: 12px 18px env(safe-area-inset-bottom, 0px);
 	box-shadow: 0 -4px 16px rgba(25, 33, 61, 0.08);
 	border-top: 1px solid rgba(18, 22, 44, 0.08);
+}
+
+:global(.has-mobile-navbar) .nav-shell {
+	bottom: calc(env(safe-area-inset-bottom, 0) + 14px);
 }
 
 .nav-bar {
