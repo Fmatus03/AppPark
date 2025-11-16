@@ -59,6 +59,10 @@ const navItemIsActive = (item: NavItem) => {
 	border-top: 1px solid rgba(18, 22, 44, 0.08);
 }
 
+:global(.has-mobile-navbar) .nav-shell {
+	bottom: calc(env(safe-area-inset-bottom, 0) + 14px);
+}
+
 .nav-bar {
 	display: flex;
 	justify-content: space-between;

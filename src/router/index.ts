@@ -4,12 +4,13 @@ import HomePage from '../views/HomePage.vue'
 import LoginUser from '../views/LoginUser.vue';
 import RegisterUser from '@/views/RegisterUser.vue';
 import HomeUser from '@/views/HomeUser.vue';
+import IncidentLog from '@/views/IncidentLog.vue';
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'Login', component: LoginUser },
   { path: '/register', name: 'Register', component: RegisterUser },
   { path: '/home', name: 'Home', component: HomeUser },
-  { path: '/incidentLog', name: 'IncidentLog', component: HomePage },
+  { path: '/incidentLog', name: 'IncidentLog', component: IncidentLog },
   { path: '/myIncidents', name: 'MyIncidents', component: HomePage },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
   { path: '/profile', name: 'Profile', component: HomePage },
