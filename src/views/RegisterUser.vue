@@ -82,30 +82,6 @@
 
 						<ion-item>
 							<ion-input
-								v-model="phone"
-								label="Teléfono"
-								label-placement="stacked"
-								placeholder="(55) 1234 5678"
-								type="tel"
-								autocomplete="tel"
-								inputmode="tel"
-							>
-								<ion-icon slot="start" :icon="callOutline" aria-hidden="true"></ion-icon>
-								<ion-button
-									v-show="phone.length > 0"
-									fill="clear"
-									slot="end"
-									type="button"
-									@click="clearPhone"
-									aria-label="Limpiar teléfono"
-								>
-									<ion-icon slot="icon-only" :icon="closeCircle" aria-hidden="true"></ion-icon>
-								</ion-button>
-							</ion-input>
-						</ion-item>
-
-						<ion-item>
-							<ion-input
 								v-model="password"
 								label="Contraseña"
 								label-placement="stacked"
@@ -152,7 +128,7 @@
 					<ion-button expand="block" type="submit" class="register-button">Crear cuenta</ion-button>
 
 					<div class="support-links">
-						<ion-button fill="clear" size="small" type="button" class="support-link">¿Ya tienes cuenta? Inicia sesión</ion-button>
+						<ion-button fill="clear" size="small" type="button" class="support-link" @click="goToLogin">¿Ya tienes cuenta? Inicia sesión</ion-button>
 						<ion-button fill="clear" size="small" type="button" class="support-link" @click="goToHelp">Ayuda</ion-button>
 					</div>
 				</form>
@@ -173,7 +149,6 @@ import {
 } from '@ionic/vue';
 import { ref } from 'vue';
 import {
-	callOutline,
 	closeCircle,
 	eye,
 	eyeOff,
@@ -187,14 +162,16 @@ import router from '@/router';
 const firstName = ref('');
 const lastName = ref('');
 const email = ref('');
-const phone = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const showPassword = ref(false);
 const clearFirstName = () => {
 	firstName.value = '';
 };
-
+const goToLogin = () => {
+	console.log('Navigating to Login page');
+	router.push({ name: 'Login' });
+};
 const clearLastName = () => {
 	lastName.value = '';
 };
@@ -203,12 +180,12 @@ const clearEmail = () => {
 	email.value = '';
 };
 
-const clearPhone = () => {
-	phone.value = '';
-};
-
 const togglePasswordVisibility = () => {
 	showPassword.value = !showPassword.value;
+};
+
+const buildNombre = () => {
+	return [firstName.value.trim(), lastName.value.trim()].filter(Boolean).join(' ');
 };
 
 const goToHelp = () => {
@@ -216,49 +193,60 @@ const goToHelp = () => {
 	router.push({ name: 'Register' });
 };
 
-const onSubmit = () => {
+const onSubmit = async () => {
 	if (password.value !== confirmPassword.value) {
 		console.warn('register-submit', { error: 'password-mismatch' });
 		return;
 	}
 
 	const payload = {
-		firstName: firstName.value,
-		lastName: lastName.value,
-		email: email.value,
-		phone: phone.value,
+		nombre: buildNombre(),
+		email: email.value.trim(),
 		password: password.value,
 	};
 
-	console.log('register-submit', payload);
+	if (!payload.nombre || !payload.email || !payload.password) {
+		console.warn('register-submit', { error: 'missing-fields' });
+		return;
+	}
 
-    const apiUrl = import.meta.env.VITE_PARK_APP_API_URL;
-    axios.post(apiUrl + 'usuario/registrarcuenta', payload, {
-          headers: {
-            Accept: 'application/json',
-            'Content-type': 'application/json',
-          },
-          validateStatus: (status) => {
-            if (status === 200) {
-              return true
-            }
-            return false
-          },
-		})
-		.then(data => {
-			console.log('Te has registrado correctamente');
-			router.push({ name: 'HomePage' });
-			console.log(data);
-		})
-		.catch(error => {
-			if (error.response && error.response.status === 500) {
-				console.log('Fallo al registrarse: el correo ya está registrado');
-				router.push({ name: 'HomePage' });
-			} else {
-				console.log('Fallo al registrarse (error de red o servidor)');
+	const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+
+	if (!apiBaseUrl) {
+		console.error('register-submit', { error: 'missing-api-base-url' });
+		return;
+	}
+
+	const endpoint = apiBaseUrl + `api/auth/register`;
+
+	console.log('register-submit', {
+		endpoint,
+		nombre: payload.nombre,
+		email: payload.email,
+	});
+
+	try {
+		const response = await axios.post(
+			endpoint,
+			payload,
+			{
+				headers: {
+					Accept: 'application/json',
+					'Content-Type': 'application/json',
+				},
 			}
-		});
+		);
 
+		console.info('register-success', response.data);
+		router.push({ name: 'Login' });
+	} catch (error) {
+		if (axios.isAxiosError(error)) {
+			const status = error.response?.status;
+			console.error('register-error', { status, data: error.response?.data });
+		} else {
+			console.error('register-error', error);
+		}
+	}
 };
 </script>
 
