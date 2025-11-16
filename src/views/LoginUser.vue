@@ -68,8 +68,8 @@
           <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
           <div class="support-links">
-            <ion-button fill="clear" size="small" type="button" class="support-link">¿Olvidaste tu contraseña?</ion-button>
-            <ion-button fill="clear" size="small" type="button" class="support-link">Crear cuenta</ion-button>
+            <ion-button fill="clear" size="small" type="button" class="support-link" @click="forgotPassword">¿Olvidaste tu contraseña?</ion-button>
+            <ion-button fill="clear" size="small" type="button" class="support-link" @click="goToRegister">Crear cuenta</ion-button>
           </div>
         </form>
       </div>
@@ -103,6 +103,13 @@ const errorMessage = ref('');
 const { login: setSessionUser } = useSession();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
+const forgotPassword = () => {
+  router.push({ name: 'ForgotPassword' });
+};
+
+const goToRegister = () => {
+  router.push({ name: 'Register' });
+};
 const clearEmail = () => {
   email.value = '';
 };
