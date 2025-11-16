@@ -1,17 +1,24 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router';
 import { RouteRecordRaw } from 'vue-router';
-import HomePage from '../views/HomePage.vue';
+import HomePage from '../views/HomePage.vue'
+import LoginUser from '../views/LoginUser.vue';
+import RegisterUser from '@/views/RegisterUser.vue';
+import HomeUser from '@/views/HomeUser.vue';
 import IncidentLog from '@/views/IncidentLog.vue';
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: '/incidentLog' },
-  { path: '/login', name: 'Login', component: HomePage },
-  { path: '/register', name: 'Register', component: HomePage },
-  { path: '/home', name: 'Home', component: HomePage },
+  { path: '/', redirect: '/login' },
+  { path: '/login', name: 'Login', component: LoginUser },
+  { path: '/register', name: 'Register', component: RegisterUser },
+  { path: '/home', name: 'Home', component: HomeUser },
   { path: '/incidentLog', name: 'IncidentLog', component: IncidentLog },
   { path: '/myIncidents', name: 'MyIncidents', component: HomePage },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
   { path: '/profile', name: 'Profile', component: HomePage },
-  { path: '/navBar-test', name: 'NavBarTest', component: () => import('../views/NavBarTest.vue'), },
+  { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), },
+  { path: '/adminHome', name: 'AdminHome', component: HomePage },
+  { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: HomePage },
+  { path: '/adminProfile', name: 'AdminProfile', component: HomePage },
+  { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: HomePage },
 ]
 
 const router = createRouter({
