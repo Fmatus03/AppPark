@@ -185,6 +185,9 @@ import {
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
+import { Geolocation } from '@capacitor/geolocation';
+import axios from 'axios';
+import { useSession } from '@/composables/useSession';
 
 type Category = 'Seguridad' | 'Mantenimiento' | 'Servicios' | 'Otros';
 
@@ -192,6 +195,12 @@ const incidentTitle = ref('');
 const incidentDescription = ref('');
 const selectedCategory = ref<Category | null>(null);
 const categories: Category[] = ['Seguridad', 'Mantenimiento', 'Servicios', 'Otros'];
+const categoryIds: Record<Category, number> = {
+	Seguridad: 1,
+	Mantenimiento: 2,
+	Servicios: 3,
+	Otros: 4,
+};
 const evidencePhotos = ref<Photo[]>([]);
 const isCapturing = ref(false);
 const audioEvidence = ref<AudioEvidence[]>([]);
@@ -199,6 +208,9 @@ const isRecordingAudio = ref(false);
 const isProcessingAudio = ref(false);
 const audioPermissionGranted = ref<boolean | null>(null);
 const router = useRouter();
+const latitude = ref<number | null>(null);
+const longitude = ref<number | null>(null);
+const { authToken } = useSession();
 
 const clearTitle = () => {
 	incidentTitle.value = '';
@@ -374,15 +386,92 @@ const removeAudioEvidence = (id: number) => {
 	audioEvidence.value = audioEvidence.value.filter((entry) => entry.id !== id);
 };
 
-const submitIncident = () => {
-	// TODO: Implement submission logic (API call, validation, etc.)
-	console.info('Incidente listo para enviar', {
-		title: incidentTitle.value,
-		description: incidentDescription.value,
-		category: selectedCategory.value,
-		photos: evidencePhotos.value,
-		audio: audioEvidence.value,
-	});
+const submitIncident = async () => {
+	if (!selectedCategory.value) {
+		console.warn('incidente-submit', { error: 'missing-category' });
+		return;
+	}
+
+	if (!incidentTitle.value || !incidentDescription.value) {
+		console.warn('incidente-submit', { error: 'missing-fields' });
+		return;
+	}
+
+	try {
+		const { coords } = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+		latitude.value = coords.latitude;
+		longitude.value = coords.longitude;
+	} catch (error) {
+		console.error('No se pudo obtener la ubicación del dispositivo', error);
+		return;
+	}
+
+	const categoryId = categoryIds[selectedCategory.value];
+
+	if (!categoryId) {
+		console.warn('incidente-submit', { error: 'unknown-category', category: selectedCategory.value });
+		return;
+	}
+
+	const incidentData = {
+		titulo: incidentTitle.value.trim(),
+		descripcion: incidentDescription.value.trim(),
+		latitud: latitude.value ?? 0,
+		longitud: longitude.value ?? 0,
+		categoriaId: categoryId,
+	};
+
+	const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+
+	if (!apiBaseUrl) {
+		console.error('incidente-submit', { error: 'missing-api-base-url' });
+		return;
+	}
+
+	const token = authToken.value;
+
+	if (!token) {
+		console.error('incidente-submit', { error: 'missing-auth-token' });
+		return;
+	}
+
+	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes`;
+	const formData = new FormData();
+	formData.append(
+		'incidente',
+		new Blob([JSON.stringify(incidentData)], { type: 'application/json' })
+	);
+
+	console.info('incidente-submit', JSON.stringify(incidentData, null, 2));
+
+	try {
+		const response = await axios.post(endpoint, formData, {
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${token}`,
+			},
+		});
+
+		console.info('incidente-submit-success', JSON.stringify(response.data, null, 2));
+		router.push({ name: 'Home' });
+	} catch (error) {
+		if (axios.isAxiosError(error)) {
+			console.error(
+				'incidente-submit-error',
+				JSON.stringify(
+					{
+						status: error.response?.status,
+						data: error.response?.data,
+						message: error.message,
+					},
+					null,
+					2
+				)
+			);
+		} else {
+			console.error('incidente-submit-error', error);
+		}
+	}
 };
 </script>
 

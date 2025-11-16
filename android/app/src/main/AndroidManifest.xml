@@ -40,23 +40,19 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-<<<<<<< HEAD
-
     <!-- Acceder al almacenamiento del celular y editarlo -->
-     <uses-permission
+    <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
 
-    <!-- Voice recorder -->  
+    <!-- Voice recorder -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-=======
-     <!-- Geolocation Plugin -->
+
+    <!-- Geolocation Plugin -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" />
-
->>>>>>> develop
 </manifest>
