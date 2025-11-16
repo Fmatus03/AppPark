@@ -56,7 +56,16 @@
             </ion-item>
           </ion-list>
 
-          <ion-button expand="block" type="submit" class="login-button">Iniciar sesión</ion-button>
+          <ion-button
+            expand="block"
+            type="submit"
+            class="login-button"
+            :disabled="isSubmitting"
+          >
+            {{ isSubmitting ? 'Ingresando…' : 'Iniciar sesión' }}
+          </ion-button>
+
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
           <div class="support-links">
             <ion-button fill="clear" size="small" type="button" class="support-link">¿Olvidaste tu contraseña?</ion-button>
@@ -69,62 +78,95 @@
 </template>
 
 <script setup lang="ts">
-  import {
-    IonButton,
-    IonContent,
-    IonIcon,
-    IonInput,
-    IonItem,
-    IonList,
-    IonPage,
-  } from '@ionic/vue';
-  import { ref } from 'vue';
-  import { closeCircle, eye, eyeOff, lockClosed, mailOutline } from 'ionicons/icons';
-  import axios from 'axios';
-  import { useRouter } from 'vue-router';
+import {
+  IonButton,
+  IonContent,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonList,
+  IonPage,
+} from '@ionic/vue';
+import { Capacitor } from '@capacitor/core';
+import { ref } from 'vue';
+import { closeCircle, eye, eyeOff, lockClosed, mailOutline } from 'ionicons/icons';
+import axios from 'axios';
+import { useRouter } from 'vue-router';
+import { useSession, type UserRole } from '@/composables/useSession';
 
-  const router = useRouter();
-  const email = ref('');
-  const password = ref('');
-  const showPassword = ref(false);
+const router = useRouter();
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
+const isSubmitting = ref(false);
+const errorMessage = ref('');
+const { login: setSessionUser } = useSession();
+const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
-  const clearEmail = () => {
-    email.value = '';
+const clearEmail = () => {
+  email.value = '';
+};
+
+const togglePasswordVisibility = () => {
+  showPassword.value = !showPassword.value;
+};
+
+const resolveRole = (): UserRole => {
+  const platform = Capacitor.getPlatform();
+  return platform === 'web' ? 'admin' : 'visitante';
+};
+
+const onSubmit = async () => {
+  if (isSubmitting.value) {
+    return;
+  }
+
+  errorMessage.value = '';
+  isSubmitting.value = true;
+
+  const payload = {
+    email: email.value,
+    password: password.value,
   };
+  console.log('login-submit', payload);
 
-  const togglePasswordVisibility = () => {
-    showPassword.value = !showPassword.value;
-  };
+  try {
+    const response = await axios.post(
+      `${apiBaseUrl}api/auth/login`,
+      payload,
+      { validateStatus: () => true },
+    );
 
-  const onSubmit = async () => {
-    const payload = {
-      email: email.value,
-      password: password.value,
-    };
-    console.log('login-submit', payload);
+    const { data, status } = response;
 
-    try {
-          const response = await axios.post(
-            process.env.PARK_APP_API_URL + 'auth/login',
-            payload,
-            { validateStatus: () => true },
-          )
+    if (status === 200 && data?.token) {
+      const correo = email.value;
+      const token = data.token as string
 
-          const { data } = response
+      const role = resolveRole();
+      const username = correo.split('@')[0] ?? 'Usuario';
+      setSessionUser({
+        id: correo,
+        name: username,
+        role,
+        token,
+      });
 
-          if (data.token) {
-            const correo = email.value
-            const token = data.token
-            sessionStorage.setItem('correo', correo)
-            sessionStorage.setItem('jwt_token', token)
-            console.log('login-success', data);
-            router.push({ name: 'HomePage' });
-          }
-        } catch (error) {
-          console.error('login-error', error);
-        }
-      };
-    </script>
+      console.log('login-success', { correo, role, token });
+      const nextRoute = role === 'admin' ? { name: 'AdminHome' } : { name: 'Home' };
+      router.push(nextRoute);
+      return;
+    }
+
+    errorMessage.value = data?.error ?? 'Credenciales inválidas';
+  } catch (error) {
+    console.error('login-error', error);
+    errorMessage.value = 'No fue posible iniciar sesión. Intenta nuevamente.';
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+</script>
 
 <style scoped>
 .login-content {
@@ -192,6 +234,13 @@
   --padding-top: 16px;
   --padding-bottom: 16px;
   font-weight: 600;
+}
+
+.error-message {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 500;
+  text-align: center;
 }
 
 .support-links {

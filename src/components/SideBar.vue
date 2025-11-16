@@ -30,8 +30,8 @@ type NavItem = {
 
 const navItems: NavItem[] = [
 	{ label: 'Home', to: '/adminHome', icon: homeOutline, match: /^\/adminHome/ },
-	{ label: 'Gestion de incidentes', to: '/adminIncidentDetail', icon: clipboardOutline, match: /^\/adminIncidentDetail/ },
-	{ label: 'Perfil', to: '/adminProfile', icon: personCircleOutline, match: /^\/profile/ },
+	{ label: 'Gestion de incidentes', to: '/adminIncidentManagment', icon: clipboardOutline, match: /^\/adminIncidentManagment/ },
+	{ label: 'Perfil', to: '/adminProfile', icon: personCircleOutline, match: /^\/adminProfile/ },
 ];
 
 const route = useRoute();
@@ -60,7 +60,7 @@ const navItemIsActive = (item: NavItem) => {
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
-	padding: 24px 20px;
+	padding: 24px;
 	gap: 24px;
 }
 
