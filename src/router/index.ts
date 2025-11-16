@@ -5,7 +5,7 @@ import LoginUser from '../views/LoginUser.vue';
 import RegisterUser from '@/views/RegisterUser.vue';
 import HomeUser from '@/views/HomeUser.vue';
 import IncidentLog from '@/views/IncidentLog.vue';
-import MyIncidenes from '@/views/MyIncidenes.vue';
+import MyIncidents from '@/views/MyIncidents.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -13,7 +13,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/register', name: 'Register', component: RegisterUser },
   { path: '/home', name: 'Home', component: HomeUser },
   { path: '/incidentLog', name: 'IncidentLog', component: IncidentLog },
-  { path: '/myIncidents', name: 'MyIncidents', component: MyIncidenes },
+  { path: '/myIncidents', name: 'MyIncidents', component: MyIncidents },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
   { path: '/profile', name: 'Profile', component: HomePage },
   { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), },

@@ -15,6 +15,17 @@
 
 		<ion-content :fullscreen="true" class="ion-padding">
 			<section class="incident-list" aria-live="polite">
+				<ion-spinner
+					v-if="isLoading"
+					name="dots"
+					class="loading-spinner"
+					aria-label="Cargando incidentes"
+				/>
+
+				<p v-if="!isLoading && errorMessage" class="error-message" role="status">
+					{{ errorMessage }}
+				</p>
+
 				<ion-card
 					v-for="incident in filteredIncidents"
 					:key="incident.id"
@@ -49,7 +60,10 @@
 					</ion-card-content>
 				</ion-card>
 
-				<p v-if="filteredIncidents.length === 0" class="empty-message">
+				<p
+					v-if="!isLoading && !errorMessage && filteredIncidents.length === 0"
+					class="empty-message"
+				>
 					No se encontraron incidentes.
 				</p>
                 <ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
@@ -64,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
 	IonCard,
@@ -78,10 +92,14 @@ import {
 	IonLabel,
 	IonPage,
 	IonSearchbar,
+	IonSpinner,
 	IonTitle,
 	IonToolbar,
+	onIonViewWillEnter,
 } from '@ionic/vue';
 import { calendarOutline, chevronForwardOutline } from 'ionicons/icons';
+import axios from 'axios';
+import { useSession } from '@/composables/useSession';
 
 type IncidentStatus = 'abierto' | 'en revision' | 'cerrado';
 
@@ -93,8 +111,21 @@ interface Incident {
 	status: IncidentStatus;
 }
 
+interface BackendIncidentResponse {
+	id: number | string | null;
+	titulo: string | null;
+	descripcion: string | null;
+	fechaReporte: string | null;
+	estado: string | null;
+}
+
 const searchQuery = ref('');
 const router = useRouter();
+const { authToken } = useSession();
+const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+const incidents = ref<Incident[]>([]);
+const isLoading = ref(false);
+const errorMessage = ref('');
 
 const goToIncident = (incidentId: number) => {
 	router.push({
@@ -103,66 +134,15 @@ const goToIncident = (incidentId: number) => {
 	});
 };
 
-const incidents: Incident[] = [
-	{
-		id: 1,
-		title: 'Fuga de agua en el estacionamiento',
-		date: '2025-11-04T09:15:00Z',
-		description: 'Se detecto una fuga a la altura del nivel -1 cerca de la rampa.',
-		status: 'abierto',
-	},
-	{
-		id: 2,
-		title: 'Punto de luz danado',
-		date: '2025-10-28T18:20:00Z',
-		description: 'Luminaria sin funcionar en el pasillo central del tercer piso.',
-		status: 'en revision',
-	},
-	{
-		id: 3,
-		title: 'Acceso bloqueado por vehiculo',
-		date: '2025-10-15T07:45:00Z',
-		description: 'Vehiculo estacionado en la salida de emergencia norte.',
-		status: 'cerrado',
-	},
-    {
-        id: 4,
-        title: 'Elevador fuera de servicio',
-        date: '2025-11-01T12:30:00Z',
-        description: 'El elevador principal no responde a las llamadas.',
-        status: 'abierto',
-    },
-    {
-        id: 5,
-        title: 'Problema con el sistema de seguridad',
-        date: '2025-10-22T14:10:00Z',
-        description: 'Alarmas que se activan sin motivo aparente en el segundo piso.',
-        status: 'en revision',
-    },
-    {
-        id: 6,
-        title: 'Falta de señalizacion en escaleras',
-        date: '2025-10-10T09:00:00Z',
-        description: 'Señales de emergencia ausentes en las escaleras del edificio A.',
-        status: 'cerrado',
-    },
-    {
-        id: 7,
-        title: 'Puerta de entrada principal dañada',
-        date: '2025-11-03T11:25:00Z',
-        description: 'La puerta no cierra correctamente y presenta daños visibles.',
-        status: 'abierto',
-    },
-];
-
 const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase());
 
 const filteredIncidents = computed(() => {
+	const incidentsList = incidents.value;
 	if (!normalizedQuery.value) {
-		return incidents;
+		return incidentsList;
 	}
 
-	return incidents.filter((incident) =>
+	return incidentsList.filter((incident) =>
 		incident.title.toLowerCase().includes(normalizedQuery.value)
 	);
 });
@@ -183,12 +163,129 @@ const truncateDescription = (description: string, maxWords = 5) => {
 	return `${words.slice(0, maxWords).join(' ')}...`;
 };
 
-const formatDate = (dateString: string) =>
-	new Date(dateString).toLocaleDateString('es-ES', {
+const formatDate = (dateString: string) => {
+	if (!dateString) {
+		return '-';
+	}
+
+	const date = new Date(dateString);
+	if (Number.isNaN(date.getTime())) {
+		return '-';
+	}
+
+	return date.toLocaleDateString('es-ES', {
 		day: 'numeric',
 		month: 'short',
 		year: 'numeric',
 	});
+};
+
+const normalizeStatus = (status: string | null | undefined): IncidentStatus => {
+	if (!status) {
+		return 'en revision';
+	}
+
+	const sanitized = status
+		.toUpperCase()
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.replace(/[-_]/g, ' ')
+		.trim();
+
+	switch (sanitized) {
+		case 'ABIERTO':
+			return 'abierto';
+		case 'CERRADO':
+			return 'cerrado';
+		case 'EN REVISION':
+			return 'en revision';
+		default:
+			return 'en revision';
+	}
+};
+
+const getSortableTime = (value: string) => {
+	const timestamp = new Date(value).getTime();
+	return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const mapBackendIncident = (incident: BackendIncidentResponse): Incident => {
+	const parsedId = Number(incident.id);
+	const safeId = Number.isFinite(parsedId) ? parsedId : Date.now();
+
+	return {
+		id: safeId,
+		title: incident.titulo?.trim() || 'Incidente sin título',
+		date: incident.fechaReporte ?? '',
+		description: incident.descripcion?.trim() || 'Sin descripción disponible.',
+		status: normalizeStatus(incident.estado),
+	};
+};
+
+const fetchIncidents = async () => {
+	if (!authToken.value) {
+		return;
+	}
+
+	if (isLoading.value) {
+		return;
+	}
+
+	isLoading.value = true;
+	errorMessage.value = '';
+
+	try {
+		const endpoint = `${apiBaseUrl}api/incidentes/mis-incidentes`;
+		const response = await axios.get<BackendIncidentResponse[]>(endpoint, {
+			headers: {
+				Accept: 'application/json',
+				Authorization: `Bearer ${authToken.value}`,
+			},
+		});
+
+		const rawIncidents = Array.isArray(response.data) ? response.data : [];
+		const mappedIncidents = rawIncidents.map(mapBackendIncident);
+		mappedIncidents.sort((a, b) => getSortableTime(b.date) - getSortableTime(a.date));
+		incidents.value = mappedIncidents;
+	} catch (error) {
+		console.error('incidents-fetch-error', error);
+		if (axios.isAxiosError(error) && error.response?.status === 401) {
+			errorMessage.value = 'Tu sesión expiró. Inicia sesión nuevamente.';
+		} else {
+			errorMessage.value = 'No fue posible cargar tus incidentes. Inténtalo nuevamente más tarde.';
+		}
+		incidents.value = [];
+	} finally {
+		isLoading.value = false;
+	}
+};
+
+watch(
+	authToken,
+	(token) => {
+		if (!token) {
+			incidents.value = [];
+			isLoading.value = false;
+			errorMessage.value = 'Inicia sesión para ver tus incidentes.';
+
+			router.push({ name: 'Login' });
+			return;
+
+		}
+
+		errorMessage.value = '';
+		void fetchIncidents();
+	},
+	{ immediate: true }
+);
+
+onIonViewWillEnter(() => {
+	if (!authToken.value) {
+		return;
+	}
+
+	void fetchIncidents();
+});
 </script>
 
 <style scoped>
@@ -196,6 +293,11 @@ const formatDate = (dateString: string) =>
 	display: flex;
 	flex-direction: column;
 	gap: 1rem;
+}
+
+.loading-spinner {
+	display: block;
+	margin: 2rem auto 0;
 }
 
 .incident-card {
@@ -270,6 +372,13 @@ const formatDate = (dateString: string) =>
 	color: var(--ion-color-medium, #92949c);
 	margin-top: 2rem;
 }
+
+.error-message {
+	text-align: center;
+	color: var(--ion-color-danger, #d32f2f);
+	margin-top: 1.5rem;
+}
+
 .safe-area-spacer {
 	opacity: 0;
 	width: 100%;
