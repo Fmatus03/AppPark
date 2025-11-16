@@ -3,11 +3,12 @@ import { RouteRecordRaw } from 'vue-router';
 import HomePage from '../views/HomePage.vue'
 import LoginUser from '../views/LoginUser.vue';
 import RegisterUser from '@/views/RegisterUser.vue';
+import HomeUser from '@/views/HomeUser.vue';
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'Login', component: LoginUser },
   { path: '/register', name: 'Register', component: RegisterUser },
-  { path: '/home', name: 'Home', component: HomePage },
+  { path: '/home', name: 'Home', component: HomeUser },
   { path: '/incidentLog', name: 'IncidentLog', component: HomePage },
   { path: '/myIncidents', name: 'MyIncidents', component: HomePage },
   { path: '/incidentDetail', name: 'IncidentDetail', component: HomePage },
