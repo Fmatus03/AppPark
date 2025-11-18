@@ -114,7 +114,7 @@ const navItemIsActive = (item: NavItem) => {
 		height: auto;
 		position: sticky;
 		top: 0;
-		padding: 16px 18px;
+		padding: 16px;
 		justify-content: center;
 		box-shadow: 0 4px 16px rgba(25, 33, 61, 0.08);
 	}

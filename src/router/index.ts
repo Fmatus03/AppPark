@@ -6,6 +6,7 @@ import RegisterUser from '@/views/RegisterUser.vue';
 import HomeUser from '@/views/HomeUser.vue';
 import IncidentLog from '@/views/IncidentLog.vue';
 import MyIncidents from '@/views/MyIncidents.vue';
+import IncidentManagment from '@/views/IncidentManagment.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -20,7 +21,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/adminHome', name: 'AdminHome', component: HomePage },
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: HomePage },
   { path: '/adminProfile', name: 'AdminProfile', component: HomePage },
-  { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: HomePage },
+  { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment },
 ]
 
 const router = createRouter({

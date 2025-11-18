@@ -34,7 +34,7 @@ ion-app.has-mobile-navbar ion-content {
 }
 
 ion-app.has-sidebar {
-  --sidebar-width: 240px;
+  --sidebar-width: 220px;
   background: #f8fafc;
 }
 
