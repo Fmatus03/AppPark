@@ -7,6 +7,7 @@ import HomeUser from '@/views/HomeUser.vue';
 import IncidentLog from '@/views/IncidentLog.vue';
 import MyIncidents from '@/views/MyIncidents.vue';
 import IncidentManagment from '@/views/IncidentManagment.vue';
+import AdminIncidentDetail from '@/views/AdminIncidentDetail.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -19,7 +20,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/profile', name: 'Profile', component: HomePage },
   { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), },
   { path: '/adminHome', name: 'AdminHome', component: HomePage },
-  { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: HomePage },
+  { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail },
   { path: '/adminProfile', name: 'AdminProfile', component: HomePage },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment },
 ]
