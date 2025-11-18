@@ -3,7 +3,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'io.ionic.starter',
   appName: 'AppPark',
-  webDir: 'dist'
+  webDir: 'dist',
+  server: {
+    androidScheme: 'http',
+    cleartext: true,
+    allowNavigation: ['http://192.168.1.13:8080']
+  }
 };
 
 export default config;
