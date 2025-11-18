@@ -18,9 +18,9 @@ const nativePlatforms = new Set(['ios', 'android']);
 const platform = Capacitor.getPlatform();
 const isNativePlatform = nativePlatforms.has(platform);
 
-const { isAuthenticated, isAdmin, isUser } = useSession();
+const { isAuthenticated, isAdmin, isVisitante } = useSession();
 
-const shouldShowNavBar = computed(() => isNativePlatform && isAuthenticated.value && isUser.value);
+const shouldShowNavBar = computed(() => isNativePlatform && isAuthenticated.value && isVisitante.value);
 const shouldShowSidebar = computed(() => !isNativePlatform && isAuthenticated.value && isAdmin.value);
 const appClasses = computed(() => ({
   'has-mobile-navbar': shouldShowNavBar.value,
@@ -34,7 +34,7 @@ ion-app.has-mobile-navbar ion-content {
 }
 
 ion-app.has-sidebar {
-  --sidebar-width: 240px;
+  --sidebar-width: 220px;
   background: #f8fafc;
 }
 

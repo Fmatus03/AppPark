@@ -1,11 +1,12 @@
 import { computed, ref } from 'vue';
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'visitante';
 
 export type SessionUser = {
   id: string;
   name: string;
   role: UserRole;
+  token: string;
 };
 
 const currentUser = ref<SessionUser | null>(null);
@@ -13,7 +14,8 @@ const currentUser = ref<SessionUser | null>(null);
 export function useSession() {
   const isAuthenticated = computed(() => currentUser.value !== null);
   const isAdmin = computed(() => currentUser.value?.role === 'admin');
-  const isUser = computed(() => currentUser.value?.role === 'user');
+  const isVisitante = computed(() => currentUser.value?.role === 'visitante');
+  const authToken = computed(() => currentUser.value?.token ?? null);
 
   const login = (user: SessionUser) => {
     currentUser.value = { ...user };
@@ -27,7 +29,8 @@ export function useSession() {
     currentUser,
     isAuthenticated,
     isAdmin,
-    isUser,
+    isVisitante,
+    authToken,
     login,
     logout,
   };
