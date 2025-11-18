@@ -10,40 +10,55 @@
 					<h2>Filtrar Incidentes</h2>
 					<form class="filters-form" @submit.prevent="applyFilters">
 						<div class="field-group">
+							<label for="filter-keyword">Buscar</label>
+							<input
+								id="filter-keyword"
+								v-model="workingFilters.keyword"
+								type="text"
+								placeholder="Título o descripción"
+							/>
+						</div>
+						<div class="field-group">
 							<label for="filter-date">Fecha</label>
 							<input id="filter-date" v-model="workingFilters.date" type="date" />
 						</div>
 						<div class="field-group">
 							<label for="filter-route">Ruta</label>
-							<select id="filter-route" v-model="workingFilters.route">
-								<option value="all">Todas las Rutas</option>
-								<option v-for="route in routes" :key="route" :value="route">
-									{{ route }}
+							<select id="filter-route" v-model="workingFilters.routeId">
+								<option value="all">Todas las rutas</option>
+								<option v-for="route in routes" :key="route.id" :value="String(route.id)">
+									{{ route.nombre }}
 								</option>
 							</select>
 						</div>
 						<div class="field-group">
 							<label for="filter-state">Estado</label>
 							<select id="filter-state" v-model="workingFilters.state">
-								<option value="all">Todos los Estados</option>
+								<option value="all">Todos los estados</option>
 								<option v-for="state in states" :key="state" :value="state">
-									{{ state }}
+									{{ formatStateLabel(state) }}
 								</option>
 							</select>
 						</div>
 						<div class="field-group">
-							<label for="filter-category">Categoria</label>
-							<select id="filter-category" v-model="workingFilters.category">
-								<option value="all">Todas las Categorias</option>
-								<option v-for="category in categories" :key="category" :value="category">
-									{{ category }}
+							<label for="filter-category">Categoría</label>
+							<select id="filter-category" v-model="workingFilters.categoryId">
+								<option value="all">Todas las categorías</option>
+								<option
+									v-for="category in categories"
+									:key="category.id"
+									:value="String(category.id)"
+								>
+									{{ category.nombre }}
 								</option>
 							</select>
 						</div>
 
 						<div class="filters-actions">
 							<button type="button" class="btn ghost" @click="resetFilters">Restablecer Filtros</button>
-							<button type="submit" class="btn primary">Aplicar Filtros</button>
+							<button type="submit" class="btn primary" :disabled="isLoadingIncidents">
+								Aplicar Filtros
+							</button>
 						</div>
 					</form>
 				</section>
@@ -51,39 +66,57 @@
 					<section class="card incidents-card">
 						<header class="incidents-header">
 							<h2>Lista de Incidentes</h2>
-							<p class="results-hint">{{ filteredIncidents.length }} resultados</p>
+							<p class="results-hint">{{ totalResults }} resultados</p>
 						</header>
 						<div class="table-wrapper">
 							<table>
 								<thead>
 									<tr>
 										<th>ID</th>
-										<th>Ruta</th>
-										<th>Categoria</th>
+										<th>Título</th>
+										<th>Categoría</th>
 										<th>Fecha</th>
 										<th>Estado</th>
 										<th aria-label="Acciones"></th>
 									</tr>
 								</thead>
 								<tbody>
-									<tr v-for="incident in filteredIncidents" :key="incident.id">
-										<td>{{ incident.id }}</td>
-										<td>{{ incident.route }}</td>
-										<td>{{ incident.category }}</td>
-										<td>{{ incident.date }}</td>
-										<td>
-											<span class="status-pill" :class="statusClass(incident.state)">
-												{{ incident.state }}
-											</span>
-										</td>
-										<td class="actions">
-											<button type="button" class="icon-btn" aria-label="Editar incidente" @click="editIncident(incident.id)">
-												<ion-icon :icon="createOutline" />
-											</button>
+									<template v-if="!isLoadingIncidents && !loadError">
+										<tr v-for="incident in incidents" :key="incident.id">
+											<td>{{ incident.id }}</td>
+											<td>{{ incident.title }}</td>
+											<td>{{ incident.category }}</td>
+											<td>{{ formatDate(incident.reportedAt) }}</td>
+											<td>
+												<span class="status-pill" :class="statusClass(incident.state)">
+													{{ formatStateLabel(incident.state) }}
+												</span>
+											</td>
+											<td class="actions">
+												<button
+													type="button"
+													class="icon-btn"
+													aria-label="Editar incidente"
+													@click="editIncident(incident.id)"
+												>
+													<ion-icon :icon="createOutline" />
+												</button>
+											</td>
+										</tr>
+										<tr v-if="incidents.length === 0">
+											<td colspan="6" class="empty-state">
+												No se encontraron incidentes con los filtros seleccionados.
+											</td>
+										</tr>
+									</template>
+									<tr v-else-if="isLoadingIncidents">
+										<td colspan="6" class="table-message">
+											<ion-spinner name="lines-small" />
+											<span>Cargando incidentes...</span>
 										</td>
 									</tr>
-									<tr v-if="filteredIncidents.length === 0">
-										<td colspan="6" class="empty-state">No se encontraron incidentes con los filtros seleccionados.</td>
+									<tr v-else>
+										<td colspan="6" class="table-message error-state">{{ loadError }}</td>
 									</tr>
 								</tbody>
 							</table>
@@ -95,88 +128,367 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
-import { IonContent, IonIcon, IonPage } from '@ionic/vue';
+import { reactive, ref, watch } from 'vue';
+import { IonContent, IonIcon, IonPage, IonSpinner, onIonViewWillEnter } from '@ionic/vue';
 import { createOutline } from 'ionicons/icons';
 import { useRouter } from 'vue-router';
-type IncidentState = 'Abierto' | 'En Revision' | 'Cerrado';
+import axios from 'axios';
+import { useSession } from '@/composables/useSession';
 
-type Incident = {
-	id: number;
-	route: string;
-	category: string;
-	date: string;
-	state: IncidentState;
+type EstadoIncidente = 'ABIERTO' | 'EN_REVISION' | 'CERRADO' | string;
+
+type BackendIncident = {
+	id: number | null;
+	titulo: string | null;
+	categoriaNombre: string | null;
+	fechaReporte: string | null;
+	estado: EstadoIncidente | null;
 };
 
-const routes = ['Ruta del Bosque', 'Ruta del Rio', 'Pico del Aguila', 'Valle de las Flores', 'Sendero de la Cascada'];
-const states: IncidentState[] = ['Abierto', 'En Revision', 'Cerrado'];
-const categories = ['Mantenimiento', 'Seguridad', 'Infraestructura', 'Medioambiente'];
+type BackendPage<T> = {
+	content?: T[];
+	totalElements?: number;
+};
 
-const incidents = ref<Incident[]>([
-	{ id: 1, route: 'Ruta del Bosque', category: 'Mantenimiento', date: '2023-10-26', state: 'Abierto' },
-	{ id: 2, route: 'Ruta del Rio', category: 'Seguridad', date: '2023-10-25', state: 'En Revision' },
-	{ id: 3, route: 'Pico del Aguila', category: 'Infraestructura', date: '2023-10-24', state: 'Cerrado' },
-	{ id: 4, route: 'Valle de las Flores', category: 'Medioambiente', date: '2023-10-23', state: 'Abierto' },
-	{ id: 5, route: 'Sendero de la Cascada', category: 'Mantenimiento', date: '2023-10-22', state: 'Cerrado' },
-	{ id: 6, route: 'Mirador del Condor', category: 'Infraestructura', date: '2023-10-21', state: 'Abierto' },
-]);
+type RouteDTO = {
+	id: number;
+	nombre: string;
+};
+
+type CategoryDTO = {
+	id: number;
+	nombre: string;
+	descripcion?: string;
+};
+
+type IncidentRow = {
+	id: number;
+	title: string;
+	category: string;
+	reportedAt: string;
+	state: EstadoIncidente;
+};
 
 type FilterSet = {
+	keyword: string;
 	date: string;
-	route: string;
+	routeId: string;
 	state: string;
-	category: string;
+	categoryId: string;
 };
 
+const router = useRouter();
+const { authToken } = useSession();
+const apiBaseEnv = import.meta.env.VITE_PARK_APP_API_URL ?? '';
+const apiBaseUrl = apiBaseEnv ? apiBaseEnv.replace(/\/$/, '') : '';
+
+const incidents = ref<IncidentRow[]>([]);
+const totalResults = ref(0);
+const isLoadingIncidents = ref(false);
+const loadError = ref<string | null>(null);
+const routes = ref<RouteDTO[]>([]);
+const categories = ref<CategoryDTO[]>([]);
+const states = ref<EstadoIncidente[]>([]);
+const referenceDataLoaded = ref(false);
+
 const defaultFilters: FilterSet = {
+	keyword: '',
 	date: '',
-	route: 'all',
+	routeId: 'all',
 	state: 'all',
-	category: 'all',
+	categoryId: 'all',
 };
 
 const workingFilters = reactive<FilterSet>({ ...defaultFilters });
 const activeFilters = ref<FilterSet>({ ...defaultFilters });
 
-const router = useRouter();
+const buildAuthHeaders = () => {
+	const token = authToken.value;
+	return {
+		Accept: 'application/json',
+		...(token ? { Authorization: `Bearer ${token}` } : {}),
+	};
+};
+
+const formatDate = (value: string) => {
+	if (!value) {
+		return '-';
+	}
+
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return '-';
+	}
+
+	return parsed.toLocaleDateString('es-CL', {
+		day: '2-digit',
+		month: 'short',
+		year: 'numeric',
+	});
+};
+
+const statusLabels: Record<string, { label: string; css: string }> = {
+	ABIERTO: { label: 'Abierto', css: 'status-open' },
+	EN_REVISION: { label: 'En Revisión', css: 'status-review' },
+	CERRADO: { label: 'Cerrado', css: 'status-closed' },
+};
+
+const formatStateLabel = (state: EstadoIncidente | null | undefined) => {
+	if (!state) {
+		return 'Sin estado';
+	}
+
+	const normalized = state.toUpperCase();
+	if (statusLabels[normalized]) {
+		return statusLabels[normalized].label;
+	}
+
+	return normalized
+		.replace(/_/g, ' ')
+		.toLowerCase()
+		.replace(/(^|\s)\w/g, (match) => match.toUpperCase());
+};
+
+const statusClass = (state: EstadoIncidente | null | undefined) => {
+	if (!state) {
+		return 'status-review';
+	}
+
+	const normalized = state.toUpperCase();
+	return statusLabels[normalized]?.css ?? 'status-review';
+};
+
 const editIncident = (incidentId: number) => {
 	router.push({
 		name: 'AdminIncidentDetail',
 		query: { id: String(incidentId) },
 	});
 };
+
+const extractErrorMessage = (error: unknown) => {
+	if (axios.isAxiosError(error)) {
+		const status = error.response?.status;
+		if (status === 401) {
+			return 'Tu sesión expiró. Inicia sesión nuevamente.';
+		}
+		return (
+			(error.response?.data as { message?: string } | undefined)?.message ??
+			'No fue posible cargar los incidentes. Intenta nuevamente.'
+		);
+	}
+
+	return 'No fue posible cargar los incidentes. Intenta nuevamente.';
+};
+
+const mapIncident = (incident: BackendIncident): IncidentRow => {
+	const parsedId = incident.id ?? Date.now();
+	return {
+		id: Number(parsedId),
+		title: incident.titulo?.trim() || 'Incidente sin título',
+		category: incident.categoriaNombre?.trim() || 'Sin categoría',
+		reportedAt: incident.fechaReporte ?? '',
+		state: incident.estado ?? 'EN_REVISION',
+	};
+};
+
+const buildQueryParams = () => {
+	const params: Record<string, string | number> = {
+		page: 0,
+		size: 50,
+		sortBy: 'fechaReporte',
+		sortDirection: 'DESC',
+	};
+
+	const filters = activeFilters.value;
+
+	if (filters.keyword.trim()) {
+		params.keyword = filters.keyword.trim();
+	}
+
+	if (filters.date) {
+		params.fechaInicio = filters.date;
+		params.fechaFin = filters.date;
+	}
+
+	if (filters.routeId !== 'all') {
+		const routeId = Number(filters.routeId);
+		if (Number.isFinite(routeId)) {
+			params.rutaId = routeId;
+		}
+	}
+
+	if (filters.categoryId !== 'all') {
+		const categoryId = Number(filters.categoryId);
+		if (Number.isFinite(categoryId)) {
+			params.categoriaId = categoryId;
+		}
+	}
+
+	if (filters.state !== 'all') {
+		params.estado = filters.state;
+	}
+
+	return params;
+};
+
+const fetchIncidents = async () => {
+	if (!apiBaseUrl) {
+		loadError.value = 'No hay configuración de API disponible.';
+		return;
+	}
+
+	if (!authToken.value) {
+		loadError.value = 'Debes iniciar sesión para ver los incidentes.';
+		return;
+	}
+
+	isLoadingIncidents.value = true;
+	loadError.value = null;
+
+	try {
+		const endpoint = `${apiBaseUrl}/api/admin/incidentes`;
+		const { data } = await axios.get<BackendPage<BackendIncident>>(endpoint, {
+			headers: buildAuthHeaders(),
+			params: buildQueryParams(),
+		});
+
+		const rows = (data.content ?? []).map(mapIncident);
+		incidents.value = rows;
+		totalResults.value = data.totalElements ?? rows.length;
+	} catch (error) {
+		console.error('admin-incidents-fetch-error', error);
+		loadError.value = extractErrorMessage(error);
+		incidents.value = [];
+		totalResults.value = 0;
+	} finally {
+		isLoadingIncidents.value = false;
+	}
+};
+
+const mapRoute = (route: RouteDTO): RouteDTO => ({
+	id: Number(route.id),
+	nombre: route.nombre || 'Ruta sin nombre',
+});
+
+const mapCategory = (category: CategoryDTO): CategoryDTO => ({
+	id: Number(category.id),
+	nombre: category.nombre || 'Categoría sin nombre',
+	descripcion: category.descripcion,
+});
+
+const fetchRoutes = async () => {
+	if (!apiBaseUrl || !authToken.value) {
+		return;
+	}
+
+	try {
+		const endpoint = `${apiBaseUrl}/api/admin/incidentes/rutas`;
+		const { data } = await axios.get<RouteDTO[]>(endpoint, {
+			headers: buildAuthHeaders(),
+		});
+		routes.value = Array.isArray(data) ? data.map(mapRoute) : [];
+	} catch (error) {
+		console.error('admin-routes-fetch-error', error);
+	}
+};
+
+const fetchCategories = async () => {
+	if (!apiBaseUrl || !authToken.value) {
+		return;
+	}
+
+	try {
+		const endpoint = `${apiBaseUrl}/api/admin/incidentes/categorias`;
+		const { data } = await axios.get<CategoryDTO[]>(endpoint, {
+			headers: buildAuthHeaders(),
+		});
+		categories.value = Array.isArray(data) ? data.map(mapCategory) : [];
+	} catch (error) {
+		console.error('admin-categories-fetch-error', error);
+	}
+};
+
+const defaultStates: EstadoIncidente[] = ['ABIERTO', 'EN_REVISION', 'CERRADO'];
+
+const fetchStates = async () => {
+	if (!apiBaseUrl || !authToken.value) {
+		states.value = states.value.length ? states.value : defaultStates;
+		return;
+	}
+
+	try {
+		const endpoint = `${apiBaseUrl}/api/admin/incidentes/estados`;
+		const { data } = await axios.get<EstadoIncidente[]>(endpoint, {
+			headers: buildAuthHeaders(),
+		});
+		if (Array.isArray(data) && data.length > 0) {
+			states.value = data;
+		} else if (!states.value.length) {
+			states.value = defaultStates;
+		}
+	} catch (error) {
+		console.error('admin-states-fetch-error', error);
+		if (!states.value.length) {
+			states.value = defaultStates;
+		}
+	}
+};
+
+const fetchReferenceData = async () => {
+	if (referenceDataLoaded.value) {
+		return;
+	}
+
+	await Promise.all([fetchRoutes(), fetchCategories(), fetchStates()]);
+	referenceDataLoaded.value = true;
+};
+
 const applyFilters = () => {
 	activeFilters.value = { ...workingFilters };
+	void fetchIncidents();
 };
 
 const resetFilters = () => {
 	Object.assign(workingFilters, defaultFilters);
 	activeFilters.value = { ...defaultFilters };
+	void fetchIncidents();
 };
 
-const filteredIncidents = computed(() => {
-	return incidents.value.filter((incident) => {
-		const matchesDate = activeFilters.value.date ? incident.date === activeFilters.value.date : true;
-		const matchesRoute = activeFilters.value.route === 'all' ? true : incident.route === activeFilters.value.route;
-		const matchesState = activeFilters.value.state === 'all' ? true : incident.state === activeFilters.value.state;
-		const matchesCategory = activeFilters.value.category === 'all' ? true : incident.category === activeFilters.value.category;
-		return matchesDate && matchesRoute && matchesState && matchesCategory;
-	});
-});
-
-const statusClass = (state: IncidentState) => {
-	switch (state) {
-		case 'Abierto':
-			return 'status-open';
-		case 'En Revision':
-			return 'status-review';
-		case 'Cerrado':
-			return 'status-closed';
-		default:
-			return '';
+const initializeView = async () => {
+	if (!authToken.value) {
+		loadError.value = 'Debes iniciar sesión para ver los incidentes.';
+		return;
 	}
+
+	await fetchReferenceData();
+	await fetchIncidents();
 };
+
+watch(
+	authToken,
+	(token) => {
+		if (!token) {
+			referenceDataLoaded.value = false;
+			incidents.value = [];
+			totalResults.value = 0;
+			loadError.value = 'Debes iniciar sesión para ver los incidentes.';
+			return;
+		}
+
+		loadError.value = null;
+		referenceDataLoaded.value = false;
+		void initializeView();
+	},
+	{ immediate: true }
+);
+
+onIonViewWillEnter(() => {
+	if (!authToken.value) {
+		return;
+	}
+
+	void initializeView();
+});
 </script>
 
 <style scoped>
@@ -219,7 +531,7 @@ const statusClass = (state: IncidentState) => {
 
 .filters-form {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 	gap: 18px;
 	align-items: end;
 }
@@ -387,6 +699,21 @@ tbody tr:hover {
 	text-align: center;
 	color: #64748b;
 	font-style: italic;
+}
+
+.table-message {
+	text-align: center;
+	color: #475569;
+	font-weight: 600;
+	padding: 32px 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+}
+
+.table-message.error-state {
+	color: #dc2626;
 }
 
 @media (max-width: 1024px) {
