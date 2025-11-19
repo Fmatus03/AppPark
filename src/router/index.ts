@@ -23,6 +23,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail },
   { path: '/adminProfile', name: 'AdminProfile', component: HomePage },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment },
+  { path: '/tendenciasAnalisis', name: 'TendenciasAnalisis', component: HomePage },
 ]
 
 const router = createRouter({

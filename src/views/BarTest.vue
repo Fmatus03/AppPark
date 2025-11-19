@@ -69,11 +69,11 @@ const isNativePlatform = nativePlatforms.has(platform);
 const platformLabel = computed(() => (isNativePlatform ? `${platform} (nativo)` : `${platform} (web)`));
 
 const loginAsAdmin = () => {
-	login({ id: 'admin-1', name: 'Admin Test', role: 'admin', token: 'adfadsf' });
+	login({ id: 'admin-1', name: 'Admin Test', role: 'ADMIN', token: 'adfadsf' });
 };
 
 const loginAsUser = () => {
-	login({ id: 'user-1', name: 'Usuario Test', role: 'visitante', token: 'bfdbdfb' });
+	login({ id: 'user-1', name: 'Usuario Test', role: 'VISITANTE', token: 'bfdbdfb' });
 };
 </script>
 

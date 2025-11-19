@@ -121,6 +121,38 @@
 								</tbody>
 							</table>
 						</div>
+						<div class="pagination-bar" v-if="pagination.totalPages > 0">
+							<div class="page-info">
+								Página {{ pagination.page + 1 }} de {{ pagination.totalPages }} ·
+								{{ pagination.totalElements }} resultados
+							</div>
+							<div class="pagination-controls">
+								<button class="page-btn" type="button" :disabled="isFirstPage" @click="goToPreviousPage">
+									Anterior
+								</button>
+								<button
+									type="button"
+									class="page-btn"
+									:class="{ active: pageNumber === pagination.page }"
+									v-for="pageNumber in visiblePageNumbers"
+									:key="pageNumber"
+									@click="requestPage(pageNumber)"
+								>
+									{{ pageNumber + 1 }}
+								</button>
+								<button class="page-btn" type="button" :disabled="isLastPage" @click="goToNextPage">
+									Siguiente
+								</button>
+							</div>
+							<label class="page-size-selector">
+								<span>Por página</span>
+								<select :value="pagination.size" @change="handlePageSizeChange">
+									<option v-for="size in pageSizeOptions" :key="size" :value="size">
+										{{ size }}
+									</option>
+								</select>
+							</label>
+						</div>
 					</section>
 			</div>
 		</ion-content>
@@ -128,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { IonContent, IonIcon, IonPage, IonSpinner, onIonViewWillEnter } from '@ionic/vue';
 import { createOutline } from 'ionicons/icons';
 import { useRouter } from 'vue-router';
@@ -148,6 +180,9 @@ type BackendIncident = {
 type BackendPage<T> = {
 	content?: T[];
 	totalElements?: number;
+	totalPages?: number;
+	number?: number;
+	size?: number;
 };
 
 type RouteDTO = {
@@ -201,6 +236,76 @@ const defaultFilters: FilterSet = {
 
 const workingFilters = reactive<FilterSet>({ ...defaultFilters });
 const activeFilters = ref<FilterSet>({ ...defaultFilters });
+
+const DEFAULT_PAGE_SIZE = 25;
+const pageSizeOptions = Object.freeze([10, 25, 50, 100]);
+const pagination = reactive({
+	page: 0,
+	size: DEFAULT_PAGE_SIZE,
+	totalPages: 1,
+	totalElements: 0,
+});
+
+const MAX_PAGE_BUTTONS = 7;
+const visiblePageNumbers = computed(() => {
+	const total = Math.max(pagination.totalPages, 1);
+	const current = Math.min(pagination.page, total - 1);
+	const half = Math.floor(MAX_PAGE_BUTTONS / 2);
+	let start = Math.max(current - half, 0);
+	const maxEnd = Math.min(start + MAX_PAGE_BUTTONS - 1, total - 1);
+	const end = maxEnd;
+	if (end - start + 1 < MAX_PAGE_BUTTONS) {
+		start = Math.max(end - MAX_PAGE_BUTTONS + 1, 0);
+	}
+	const pages: number[] = [];
+	for (let i = start; i <= end; i += 1) {
+		pages.push(i);
+	}
+	return pages;
+});
+
+const isFirstPage = computed(() => pagination.page <= 0);
+const isLastPage = computed(() => pagination.page + 1 >= pagination.totalPages);
+
+const updatePaginationFromResponse = (pageData: BackendPage<unknown>) => {
+	pagination.page = pageData.number ?? pagination.page;
+	pagination.size = pageData.size ?? pagination.size;
+	const totalPages = pageData.totalPages ?? pagination.totalPages;
+	pagination.totalPages = Math.max(totalPages || 1, 1);
+	pagination.totalElements = pageData.totalElements ?? pagination.totalElements;
+};
+
+const requestPage = (page: number) => {
+	if (page < 0 || page >= pagination.totalPages || page === pagination.page) {
+		return;
+	}
+	pagination.page = page;
+	void fetchIncidents();
+};
+
+const goToPreviousPage = () => {
+	if (isFirstPage.value) {
+		return;
+	}
+	requestPage(pagination.page - 1);
+};
+
+const goToNextPage = () => {
+	if (isLastPage.value) {
+		return;
+	}
+	requestPage(pagination.page + 1);
+};
+
+const handlePageSizeChange = (event: Event) => {
+	const nextSize = Number((event.target as HTMLSelectElement).value);
+	if (!Number.isFinite(nextSize) || nextSize === pagination.size) {
+		return;
+	}
+	pagination.size = nextSize;
+	pagination.page = 0;
+	void fetchIncidents();
+};
 
 const buildAuthHeaders = () => {
 	const token = authToken.value;
@@ -293,8 +398,8 @@ const mapIncident = (incident: BackendIncident): IncidentRow => {
 
 const buildQueryParams = () => {
 	const params: Record<string, string | number> = {
-		page: 0,
-		size: 50,
+		page: pagination.page,
+		size: pagination.size,
 		sortBy: 'fechaReporte',
 		sortDirection: 'DESC',
 	};
@@ -347,18 +452,23 @@ const fetchIncidents = async () => {
 
 	try {
 		const endpoint = `${apiBaseUrl}/api/admin/incidentes`;
+		const params = buildQueryParams();
 		const { data } = await axios.get<BackendPage<BackendIncident>>(endpoint, {
 			headers: buildAuthHeaders(),
-			params: buildQueryParams(),
+			params,
 		});
 
 		const rows = (data.content ?? []).map(mapIncident);
 		incidents.value = rows;
-		totalResults.value = data.totalElements ?? rows.length;
+		updatePaginationFromResponse(data);
+		totalResults.value = pagination.totalElements || rows.length;
 	} catch (error) {
 		console.error('admin-incidents-fetch-error', error);
 		loadError.value = extractErrorMessage(error);
 		incidents.value = [];
+		pagination.totalElements = 0;
+		pagination.totalPages = 1;
+		pagination.page = 0;
 		totalResults.value = 0;
 	} finally {
 		isLoadingIncidents.value = false;
@@ -445,12 +555,14 @@ const fetchReferenceData = async () => {
 
 const applyFilters = () => {
 	activeFilters.value = { ...workingFilters };
+	pagination.page = 0;
 	void fetchIncidents();
 };
 
 const resetFilters = () => {
 	Object.assign(workingFilters, defaultFilters);
 	activeFilters.value = { ...defaultFilters };
+	pagination.page = 0;
 	void fetchIncidents();
 };
 
@@ -471,12 +583,15 @@ watch(
 			referenceDataLoaded.value = false;
 			incidents.value = [];
 			totalResults.value = 0;
+			pagination.page = 0;
+			pagination.totalElements = 0;
 			loadError.value = 'Debes iniciar sesión para ver los incidentes.';
 			return;
 		}
 
 		loadError.value = null;
 		referenceDataLoaded.value = false;
+		pagination.page = 0;
 		void initializeView();
 	},
 	{ immediate: true }
@@ -716,6 +831,72 @@ tbody tr:hover {
 	color: #dc2626;
 }
 
+.pagination-bar {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid rgba(148, 163, 184, 0.3);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.page-info {
+	font-size: 0.9rem;
+	color: #475569;
+}
+
+.pagination-controls {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.page-btn {
+	border: 1px solid rgba(148, 163, 184, 0.6);
+	background: #ffffff;
+	color: #1f2937;
+	border-radius: 10px;
+	padding: 8px 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+	background: rgba(148, 163, 184, 0.12);
+}
+
+.page-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.page-btn.active {
+	background: #22c55e;
+	border-color: #22c55e;
+	color: #ffffff;
+	box-shadow: 0 8px 16px rgba(34, 197, 94, 0.2);
+}
+
+.page-size-selector {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 0.9rem;
+	color: #475569;
+}
+
+.page-size-selector select {
+	height: 40px;
+	border-radius: 10px;
+	border: 1px solid rgba(148, 163, 184, 0.6);
+	padding: 0 12px;
+	background: #ffffff;
+	color: #1f2937;
+}
+
 @media (max-width: 1024px) {
 	.incident-page {
 		padding: 24px;
@@ -742,6 +923,11 @@ tbody tr:hover {
 
 	.btn {
 		width: 100%;
+	}
+
+	.pagination-bar {
+		flex-direction: column;
+		align-items: flex-start;
 	}
 }
 </style>

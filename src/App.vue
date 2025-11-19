@@ -9,19 +9,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { IonApp, IonRouterOutlet } from '@ionic/vue';
-import { Capacitor } from '@capacitor/core';
 import NavBar from './components/NavBar.vue';
 import SideBar from './components/SideBar.vue';
 import { useSession } from './composables/useSession';
 
-const nativePlatforms = new Set(['ios', 'android']);
-const platform = Capacitor.getPlatform();
-const isNativePlatform = nativePlatforms.has(platform);
 
-const { isAuthenticated, isAdmin, isVisitante } = useSession();
 
-const shouldShowNavBar = computed(() => isNativePlatform && isAuthenticated.value && isVisitante.value);
-const shouldShowSidebar = computed(() => !isNativePlatform && isAuthenticated.value && isAdmin.value);
+const { isAuthenticated, isAdmin, isVisitante, isAnalista } = useSession();
+
+const shouldShowNavBar = computed(() => isAuthenticated.value && isVisitante.value);
+const shouldShowSidebar = computed(() => isAuthenticated.value && (isAdmin.value || isAnalista.value));
+
 const appClasses = computed(() => ({
   'has-mobile-navbar': shouldShowNavBar.value,
   'has-sidebar': shouldShowSidebar.value,

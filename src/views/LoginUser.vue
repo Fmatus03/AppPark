@@ -87,12 +87,11 @@ import {
   IonList,
   IonPage,
 } from '@ionic/vue';
-import { Capacitor } from '@capacitor/core';
 import { ref } from 'vue';
 import { closeCircle, eye, eyeOff, lockClosed, mailOutline } from 'ionicons/icons';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
-import { useSession, type UserRole } from '@/composables/useSession';
+import { UserRole, useSession } from '@/composables/useSession';
 
 const router = useRouter();
 const email = ref('');
@@ -102,6 +101,16 @@ const isSubmitting = ref(false);
 const errorMessage = ref('');
 const { login: setSessionUser } = useSession();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+
+const normalizeRole = (value: unknown): UserRole => {
+  if (typeof value === 'string') {
+    const upperValue = value.toUpperCase();
+    if (upperValue === 'ADMIN' || upperValue === 'VISITANTE' || upperValue === 'ANALISTA') {
+      return upperValue as UserRole;
+    }
+  }
+  return 'VISITANTE';
+};
 
 const forgotPassword = () => {
   router.push({ name: 'ForgotPassword' });
@@ -116,11 +125,6 @@ const clearEmail = () => {
 
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
-};
-
-const resolveRole = (): UserRole => {
-  const platform = Capacitor.getPlatform();
-  return platform === 'web' ? 'admin' : 'visitante';
 };
 
 const onSubmit = async () => {
@@ -148,9 +152,8 @@ const onSubmit = async () => {
 
     if (status === 200 && data?.token) {
       const correo = email.value;
-      const token = data.token as string
-
-      const role = resolveRole();
+      const token = data.token as string;
+      const role = normalizeRole(data.rol);
       const username = correo.split('@')[0] ?? 'Usuario';
       setSessionUser({
         id: correo,
@@ -160,7 +163,9 @@ const onSubmit = async () => {
       });
 
       console.log('login-success', { correo, role, token });
-      const nextRoute = role === 'admin' ? { name: 'AdminHome' } : { name: 'Home' };
+      const nextRoute = role === 'ADMIN' || role === 'ANALISTA'
+        ? { name: 'AdminHome' }
+        : { name: 'Home' };
       router.push(nextRoute);
       return;
     }
