@@ -34,7 +34,7 @@ const { isAdmin, isAnalista } = useSession();
 
 // Compute the three nav items based on user role. Always return exactly 3 items.
 const navItems = computed<NavItem[]>(() => {
-	const perfil: NavItem = { label: 'Perfil', to: '/adminProfile', icon: personCircleOutline, match: /^\/adminProfile/ };
+	const perfil: NavItem = { label: 'Perfil', to: '/profile', icon: personCircleOutline, match: /^\/profile/ };
 
 	if (isAnalista.value) {
 		// Analista: show Tendencias y analisis (no Gestion de incidentes)
