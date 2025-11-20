@@ -11,9 +11,10 @@
 				<ion-card class="profile-card">
 					<ion-card-content class="profile-header">
 						<ion-avatar class="profile-avatar">
-							<span>{{ user.initials }}</span>
+							<span>{{ profileInitials }}</span>
 						</ion-avatar>
-						<h2 class="profile-name">{{ user.fullName }}</h2>
+						<h2 class="profile-name">{{ profileName }}</h2>
+						<p class="profile-role">{{ profileRole }}</p>
 					</ion-card-content>
 				</ion-card>
 			</section>
@@ -29,24 +30,34 @@
 								<ion-icon slot="start" :icon="mailOutline" aria-hidden="true"></ion-icon>
 								<ion-label>
 									<h3>Correo</h3>
-									<p>{{ user.email }}</p>
+									<p>{{ currentUserProfile?.email ?? '—' }}</p>
 								</ion-label>
 							</ion-item>
 							<ion-item>
-								<ion-icon slot="start" :icon="callOutline" aria-hidden="true"></ion-icon>
 								<ion-label>
-									<h3>Teléfono</h3>
-									<p>{{ user.phone }}</p>
+									<h3>Rol</h3>
+									<p class="text-uppercase">{{ currentUserProfile?.rol ?? '—' }}</p>
 								</ion-label>
 							</ion-item>
 							<ion-item>
-								<ion-icon slot="start" :icon="locationOutline" aria-hidden="true" />
 								<ion-label>
-									<h3>Ubicación</h3>
-									<p>{{ user.location }}</p>
+									<h3>ID de usuario</h3>
+									<p>{{ currentUserProfile?.id ?? '—' }}</p>
 								</ion-label>
 							</ion-item>
 						</ion-list>
+						<div class="card-status" v-if="isLoading || errorMessage">
+							<p v-if="isLoading">Cargando perfil…</p>
+							<p v-else class="error-text">{{ errorMessage }}</p>
+							<ion-button
+								v-if="!isLoading && errorMessage"
+								size="small"
+								fill="outline"
+								@click="loadProfile"
+							>
+								Reintentar
+							</ion-button>
+						</div>
 					</ion-card-content>
 				</ion-card>
 
@@ -83,32 +94,135 @@ import {
 	IonCardContent,
 	IonCardHeader,
 	IonCardTitle,
+	IonChip,
 	IonContent,
 	IonHeader,
 	IonIcon,
 	IonItem,
-	IonChip,
 	IonLabel,
 	IonList,
 	IonPage,
 	IonTitle,
 	IonToolbar,
 } from '@ionic/vue';
-import { callOutline, locationOutline, mailOutline } from 'ionicons/icons';
+import { mailOutline } from 'ionicons/icons';
+import axios from 'axios';
+import { HTTP } from '@awesome-cordova-plugins/http';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { isAndroidNativeApp, parseNativeResponse } from '@/utils/httpHelpers';
+import { useSession } from '@/composables/useSession';
 
-const user = {
-	initials: 'FM',
-	fullName: 'Fabian Matus',
-	email: 'fabian.matus@example.com',
-	phone: '+56 9 5555 1234',
-	location: 'Edificio Central, Nivel 3',
+type UsuarioPerfilDTO = {
+	id: number;
+	nombre: string;
+	email: string;
+	rol: string;
 };
 
-
 const router = useRouter();
+const { authToken, logout } = useSession();
+const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL ?? '';
+
+const currentUserProfile = ref<UsuarioPerfilDTO | null>(null);
+const isLoading = ref(false);
+const errorMessage = ref('');
+
+const resolveProfileEndpoint = () => {
+	const trimmedBase = apiBaseUrl?.trim();
+	if (trimmedBase) {
+		const normalized = trimmedBase.endsWith('/') ? trimmedBase : `${trimmedBase}/`;
+		return `${normalized}api/auth/me`;
+	}
+	if (typeof window !== 'undefined' && window.location?.origin) {
+		return `${window.location.origin}/api/auth/me`;
+	}
+	return '/api/auth/me';
+};
+
+const profileEndpoint = resolveProfileEndpoint();
+
+const buildAuthHeaders = (): Record<string, string> => {
+	const token = authToken.value;
+	if (token) {
+		return {
+			Authorization: `Bearer ${token}`,
+		};
+	}
+	return {};
+};
+
+const requestProfileWithAxios = async (): Promise<UsuarioPerfilDTO> => {
+	const response = await axios.get<UsuarioPerfilDTO>(profileEndpoint, {
+		withCredentials: true,
+		headers: {
+			Accept: 'application/json',
+			...buildAuthHeaders(),
+		},
+	});
+	return response.data;
+};
+
+const requestProfileWithCordova = async (): Promise<UsuarioPerfilDTO> => {
+	const headers = {
+		Accept: 'application/json',
+		...buildAuthHeaders(),
+	};
+	const response = await HTTP.get(profileEndpoint, {}, headers);
+	return parseNativeResponse<UsuarioPerfilDTO>(response.data);
+};
+
+const handleUnauthorized = () => {
+	logout();
+	router.replace({ name: 'Login' });
+};
+
+const loadProfile = async () => {
+	isLoading.value = true;
+	errorMessage.value = '';
+	try {
+		const payload = isAndroidNativeApp()
+			? await requestProfileWithCordova()
+			: await requestProfileWithAxios();
+		currentUserProfile.value = payload;
+	} catch (error: any) {
+		console.error('profile-fetch-error', error);
+		const status = error?.status ?? error?.response?.status;
+		if (status === 401) {
+			handleUnauthorized();
+			return;
+		}
+		errorMessage.value = 'No pudimos cargar tu perfil. Intenta nuevamente en unos segundos.';
+	} finally {
+		isLoading.value = false;
+	}
+};
+
+onMounted(loadProfile);
+
+const normalizeInitials = (name?: string) => {
+	if (!name) {
+		return 'US';
+	}
+	const parts = name
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean);
+	if (!parts.length) {
+		return 'US';
+	}
+	if (parts.length === 1) {
+		return parts[0]!.slice(0, 2).toUpperCase();
+	}
+	return `${(parts[0]![0] ?? '').toUpperCase()}${(parts[parts.length - 1]![0] ?? '').toUpperCase()}`;
+};
+
+const profileInitials = computed(() => normalizeInitials(currentUserProfile.value?.nombre));
+const profileName = computed(() => currentUserProfile.value?.nombre ?? 'Usuario');
+const profileRole = computed(() => currentUserProfile.value?.rol ?? 'Rol no disponible');
 
 const redirectToLogin = () => {
+	logout();
 	router.push({ name: 'Login' });
 };
 
@@ -156,6 +270,14 @@ const redirectToLogin = () => {
 	font-weight: 650;
 }
 
+.profile-role {
+	margin: 0;
+	font-size: 0.9rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: var(--ion-color-medium, #6b7280);
+}
+
 .contact-card ion-card-title {
 	font-size: 1.1rem;
 	font-weight: 600;
@@ -177,6 +299,20 @@ const redirectToLogin = () => {
 .contact-card ion-icon {
 	font-size: 1.4rem;
 	color: var(--ion-color-primary, #2eae78);
+}
+
+.card-status {
+	margin-top: 12px;
+	text-align: center;
+}
+
+.card-status p {
+	margin: 0 0 8px;
+	color: var(--ion-color-medium, #6b7280);
+}
+
+.card-status .error-text {
+	color: #b91c1c;
 }
 
 .logout-button {
