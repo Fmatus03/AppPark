@@ -212,7 +212,6 @@ import { Capacitor } from '@capacitor/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
-import { Directory, Filesystem } from '@capacitor/filesystem';
 import { HTTP } from '@awesome-cordova-plugins/http';
 import { useSession } from '@/composables/useSession';
 import { isAndroidNativeApp, parseFetchResponse, throwFetchError } from '@/utils/httpHelpers';
@@ -488,22 +487,6 @@ const base64ToBlob = (base64: string, mimeType: string) => {
 	return new Blob(blobParts, { type: mimeType });
 };
 
-const blobToBase64 = (blob: Blob) =>
-	new Promise<string>((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
-		reader.onloadend = () => {
-			const result = reader.result;
-			if (typeof result === 'string') {
-				const [, data] = result.split(',');
-				resolve(data ?? '');
-			} else {
-				reject(new Error('Formato de archivo no soportado.'));
-			}
-		};
-		reader.readAsDataURL(blob);
-	});
-
 const ensureWebAccessiblePath = (path?: string | null) => {
 	if (!path) {
 		return null;
@@ -517,7 +500,7 @@ const ensureWebAccessiblePath = (path?: string | null) => {
 };
 
 const photoToBlob = async (photo: Photo) => {
-	const sourceUrl = ensureWebAccessiblePath(photo.webPath ?? photo.path);
+	const sourceUrl = photo.webPath ?? ensureWebAccessiblePath(photo.path);
 	if (!sourceUrl) {
 		throw new Error('No se encontró la ruta de la foto.');
 	}
@@ -555,139 +538,7 @@ const audioToBlob = async (audio: AudioEvidence) => {
 	return response.blob();
 };
 
-type NativeFileReference = {
-	filePath: string;
-	tempPath?: string;
-};
-
-const TEMP_UPLOAD_FOLDER = 'incident-uploads';
-
-const writeBase64File = async (base64: string, filename: string): Promise<NativeFileReference> => {
-	const virtualPath = `${TEMP_UPLOAD_FOLDER}/${Date.now()}-${filename}`;
-	await Filesystem.writeFile({
-		path: virtualPath,
-		data: base64,
-		directory: Directory.Cache,
-		recursive: true,
-	});
-	const { uri } = await Filesystem.getUri({ path: virtualPath, directory: Directory.Cache });
-	return { filePath: uri, tempPath: virtualPath };
-};
-
-const writeBlobFile = async (blob: Blob, filename: string): Promise<NativeFileReference> => {
-	const base64 = await blobToBase64(blob);
-	return writeBase64File(base64, filename);
-};
-
-const resolvePhotoFilePath = async (photo: Photo, index: number): Promise<NativeFileReference | null> => {
-	if (photo.path) {
-		return { filePath: photo.path };
-	}
-
-	const blob = await photoToBlob(photo);
-	const mimeType = blob.type || 'image/jpeg';
-	const [, subtype] = mimeType.split('/');
-	const extension = subtype ? subtype.replace('+', '') : 'jpg';
-	return writeBlobFile(blob, `foto-${index + 1}.${extension}`);
-};
-
-const resolveAudioFilePath = async (audio: AudioEvidence, index: number): Promise<NativeFileReference | null> => {
-	if (audio.path) {
-		return { filePath: audio.path };
-	}
-
-	if (audio.base64) {
-		return writeBase64File(audio.base64, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
-	}
-
-	if (audio.dataUrl?.startsWith('data:')) {
-		const [, payload] = audio.dataUrl.split(',');
-		if (payload) {
-			return writeBase64File(payload, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
-		}
-	}
-
-	return null;
-};
-
-const cleanupTempFiles = async (virtualPaths: string[]) => {
-	await Promise.all(
-		virtualPaths.map((path) =>
-			Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(() => undefined)
-		)
-	);
-};
-
-const prepareNativeUploadFiles = async () => {
-	const tempPaths: string[] = [];
-	const filePaths: string[] = [];
-	const paramNames: string[] = [];
-
-	const photoRefs = await Promise.all(
-		evidencePhotos.value.map((photo, index) => resolvePhotoFilePath(photo, index))
-	);
-	photoRefs.forEach((ref) => {
-		if (!ref) {
-			return;
-		}
-		filePaths.push(ref.filePath);
-		paramNames.push('fotos');
-		if (ref.tempPath) {
-			tempPaths.push(ref.tempPath);
-		}
-	});
-
-	const audioRefs = await Promise.all(
-		audioEvidence.value.map((audio, index) => resolveAudioFilePath(audio, index))
-	);
-	audioRefs.forEach((ref) => {
-		if (!ref) {
-			return;
-		}
-		filePaths.push(ref.filePath);
-		paramNames.push('audios');
-		if (ref.tempPath) {
-			tempPaths.push(ref.tempPath);
-		}
-	});
-
-	return { tempPaths, filePaths, paramNames };
-};
-
-const uploadIncidentNative = async (
-	endpoint: string,
-	headers: Record<string, string>,
-	incidentData: Record<string, unknown>
-) => {
-	const { tempPaths, filePaths, paramNames } = await prepareNativeUploadFiles();
-
-	try {
-		if (filePaths.length > 0) {
-			await HTTP.uploadFile(
-				endpoint,
-				{ incidente: JSON.stringify(incidentData) },
-				headers,
-				filePaths,
-				paramNames
-			);
-		} else {
-			await HTTP.sendRequest(endpoint, {
-				method: 'post',
-				serializer: 'multipart',
-				headers,
-				data: { incidente: JSON.stringify(incidentData) },
-			});
-		}
-	} finally {
-		await cleanupTempFiles(tempPaths);
-	}
-};
-
-const uploadIncidentWeb = async (
-	endpoint: string,
-	headers: Record<string, string>,
-	incidentData: Record<string, unknown>
-) => {
+const buildIncidentFormData = async (incidentData: Record<string, unknown>) => {
 	const formData = new FormData();
 	formData.append(
 		'incidente',
@@ -710,6 +561,50 @@ const uploadIncidentWeb = async (
 			formData.append('audios', blob, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
 		})
 	);
+
+	return formData;
+};
+
+const resetForm = () => {
+	incidentTitle.value = '';
+	incidentDescription.value = '';
+	selectedCategory.value = null;
+	evidencePhotos.value = [];
+	audioEvidence.value = [];
+	latitude.value = null;
+	longitude.value = null;
+	isCapturing.value = false;
+	isRecordingAudio.value = false;
+	isProcessingAudio.value = false;
+	isRecordGestureActive.value = false;
+};
+
+const uploadIncidentNative = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const formData = await buildIncidentFormData(incidentData);
+	const resp = await HTTP.sendRequest(endpoint, {
+		method: 'post',
+		serializer: 'multipart',
+		headers,
+		data: formData as unknown as Record<string, unknown>,
+		responseType: 'text',
+	});
+	const status = resp?.status ?? -1;
+	const data = resp?.data ?? resp?.error ?? null;
+	if (status < 200 || status >= 300) {
+		throw { status, data };
+	}
+};
+
+const uploadIncidentWeb = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const formData = await buildIncidentFormData(incidentData);
 
 	const response = await fetch(endpoint, {
 		method: 'POST',
@@ -789,6 +684,8 @@ const submitIncident = async () => {
 		}
 
 		console.info('incidente-submit-success');
+		// Clear form so inputs, images and audios are reset
+		resetForm();
 		router.push({ name: 'Home' });
 	} catch (error) {
 		const status = (error as { status?: number })?.status;
