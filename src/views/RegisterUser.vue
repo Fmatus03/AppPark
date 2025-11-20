@@ -125,7 +125,9 @@
 						</ion-item>
 					</ion-list>
 
-					<ion-button expand="block" type="submit" class="register-button">Crear cuenta</ion-button>
+					<ion-button expand="block" type="submit" class="register-button" :disabled="isSubmitting">
+						{{ isSubmitting ? 'Creando cuenta…' : 'Crear cuenta' }}
+					</ion-button>
 
 					<div class="support-links">
 						<ion-button fill="clear" size="small" type="button" class="support-link" @click="goToLogin">¿Ya tienes cuenta? Inicia sesión</ion-button>
@@ -146,6 +148,7 @@ import {
 	IonItem,
 	IonList,
 	IonPage,
+	onIonViewWillLeave,
 } from '@ionic/vue';
 import { ref } from 'vue';
 import {
@@ -156,8 +159,9 @@ import {
 	mailOutline,
 	personOutline,
 } from 'ionicons/icons';
-import axios from 'axios';
+import { HTTP } from '@awesome-cordova-plugins/http';
 import router from '@/router';
+import { isAndroidNativeApp, parseFetchResponse, throwFetchError, parseNativeResponse } from '@/utils/httpHelpers';
 
 const firstName = ref('');
 const lastName = ref('');
@@ -165,11 +169,22 @@ const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const showPassword = ref(false);
+const isSubmitting = ref(false);
 const clearFirstName = () => {
 	firstName.value = '';
 };
+const resetForm = () => {
+	firstName.value = '';
+	lastName.value = '';
+	email.value = '';
+	password.value = '';
+	confirmPassword.value = '';
+	showPassword.value = false;
+	isSubmitting.value = false;
+};
+
 const goToLogin = () => {
-	console.log('Navigating to Login page');
+	resetForm();
 	router.push({ name: 'Login' });
 };
 const clearLastName = () => {
@@ -189,9 +204,13 @@ const buildNombre = () => {
 };
 
 const goToHelp = () => {
-    console.log('Navigating to Register page');
+	resetForm();
 	router.push({ name: 'Register' });
 };
+
+onIonViewWillLeave(() => {
+	resetForm();
+});
 
 const onSubmit = async () => {
 	if (password.value !== confirmPassword.value) {
@@ -226,26 +245,40 @@ const onSubmit = async () => {
 	});
 
 	try {
-		const response = await axios.post(
-			endpoint,
-			payload,
-			{
-				headers: {
-					Accept: 'application/json',
-					'Content-Type': 'application/json',
-				},
-			}
-		);
+		isSubmitting.value = true;
+		const headers: Record<string, string> = {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+		};
 
-		console.info('register-success', response.data);
+		if (isAndroidNativeApp()) {
+			await HTTP.setDataSerializer('json');
+			const response = await HTTP.post(endpoint, payload, headers);
+			const data = parseNativeResponse(response.data);
+			console.info('register-success', data);
+		} else {
+			const response = await fetch(endpoint, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify(payload),
+			});
+
+			if (!response.ok) {
+				await throwFetchError(response);
+			}
+
+			const data = await parseFetchResponse(response);
+			console.info('register-success', data);
+		}
+
+		resetForm();
 		router.push({ name: 'Login' });
 	} catch (error) {
-		if (axios.isAxiosError(error)) {
-			const status = error.response?.status;
-			console.error('register-error', { status, data: error.response?.data });
-		} else {
-			console.error('register-error', error);
-		}
+		const status = (error as { status?: number })?.status;
+		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
+		console.error('register-error', { status, data });
+	} finally {
+		isSubmitting.value = false;
 	}
 };
 </script>

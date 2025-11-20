@@ -56,6 +56,11 @@
             </ion-item>
           </ion-list>
 
+          <ion-item lines="none" class="remember-session">
+            <ion-checkbox slot="start" v-model="rememberSession" aria-label="Mantener sesión abierta" />
+            <ion-label>Mantener sesión abierta</ion-label>
+          </ion-item>
+
           <ion-button
             expand="block"
             type="submit"
@@ -69,7 +74,16 @@
 
           <div class="support-links">
             <ion-button fill="clear" size="small" type="button" class="support-link" @click="forgotPassword">¿Olvidaste tu contraseña?</ion-button>
-            <ion-button fill="clear" size="small" type="button" class="support-link" @click="goToRegister">Crear cuenta</ion-button>
+            <ion-button
+              v-if="runningOnAndroidApp"
+              fill="clear"
+              size="small"
+              type="button"
+              class="support-link"
+              @click="goToRegister"
+            >
+              Crear cuenta
+            </ion-button>
           </div>
         </form>
       </div>
@@ -80,18 +94,29 @@
 <script setup lang="ts">
 import {
   IonButton,
+  IonCheckbox,
   IonContent,
   IonIcon,
   IonInput,
   IonItem,
+  IonLabel,
   IonList,
   IonPage,
+  onIonViewWillLeave,
 } from '@ionic/vue';
 import { ref } from 'vue';
 import { closeCircle, eye, eyeOff, lockClosed, mailOutline } from 'ionicons/icons';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 import { UserRole, useSession } from '@/composables/useSession';
+import { HTTP } from '@awesome-cordova-plugins/http';
+import { isAndroidNativeApp, parseNativeResponse } from '@/utils/httpHelpers';
+
+type LoginResponse = {
+  token?: string;
+  rol?: string;
+  error?: string;
+};
 
 const router = useRouter();
 const email = ref('');
@@ -99,6 +124,8 @@ const password = ref('');
 const showPassword = ref(false);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
+const runningOnAndroidApp = ref(isAndroidNativeApp());
+const rememberSession = ref(false);
 const { login: setSessionUser } = useSession();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
@@ -112,11 +139,22 @@ const normalizeRole = (value: unknown): UserRole => {
   return 'VISITANTE';
 };
 
+const resetForm = () => {
+  email.value = '';
+  password.value = '';
+  showPassword.value = false;
+  isSubmitting.value = false;
+  errorMessage.value = '';
+  rememberSession.value = false;
+};
+
 const forgotPassword = () => {
+  resetForm();
   router.push({ name: 'ForgotPassword' });
 };
 
 const goToRegister = () => {
+  resetForm();
   router.push({ name: 'Register' });
 };
 const clearEmail = () => {
@@ -126,6 +164,10 @@ const clearEmail = () => {
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
 };
+
+onIonViewWillLeave(() => {
+  resetForm();
+});
 
 const onSubmit = async () => {
   if (isSubmitting.value) {
@@ -142,30 +184,54 @@ const onSubmit = async () => {
   console.log('login-submit', payload);
 
   try {
-    const response = await axios.post(
-      `${apiBaseUrl}api/auth/login`,
-      payload,
-      { validateStatus: () => true },
-    );
+    const endpoint = `${apiBaseUrl}api/auth/login`;
+    const baseHeaders = {
+		Accept: 'application/json',
+		'Content-Type': 'application/json',
+	};
 
-    const { data, status } = response;
+    let status: number | undefined;
+    let data: LoginResponse | undefined;
+
+    if (isAndroidNativeApp()) {
+		await HTTP.setDataSerializer('json');
+		const response = await HTTP.post(endpoint, payload, baseHeaders);
+		status = response.status;
+		data = parseNativeResponse<LoginResponse>(response.data);
+	} else {
+		const response = await axios.post<LoginResponse>(
+			endpoint,
+			payload,
+			{ validateStatus: () => true },
+		);
+		status = response.status;
+		data = response.data;
+	}
 
     if (status === 200 && data?.token) {
       const correo = email.value;
       const token = data.token as string;
       const role = normalizeRole(data.rol);
       const username = correo.split('@')[0] ?? 'Usuario';
-      setSessionUser({
-        id: correo,
-        name: username,
-        role,
-        token,
-      });
+      setSessionUser(
+        {
+          id: correo,
+          name: username,
+          role,
+          token,
+        },
+        rememberSession.value,
+      );
 
       console.log('login-success', { correo, role, token });
-      const nextRoute = role === 'ADMIN' || role === 'ANALISTA'
-        ? { name: 'AdminHome' }
-        : { name: 'Home' };
+      const nextRoute = role === 'ADMIN' || role === 'ANALISTA' ? { name: 'AdminHome' } : { name: 'Home' };
+      try {
+		const activeElement = document.activeElement as HTMLElement | null;
+		activeElement?.blur();
+	} catch (error) {
+		console.debug('login-blur-skip', error);
+	}
+      resetForm();
       router.push(nextRoute);
       return;
     }
@@ -237,6 +303,17 @@ const onSubmit = async () => {
   background: #ffffff;
   padding: 0 0.5rem;
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+}
+
+.remember-session {
+  --inner-padding-end: 0;
+  margin-top: 0.5rem;
+  border-radius: 12px;
+}
+
+.remember-session ion-label {
+  margin-left: 0.5rem;
+  font-size: 0.95rem;
 }
 
 .login-button {
