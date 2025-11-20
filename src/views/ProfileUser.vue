@@ -1,11 +1,5 @@
 <template>
 	<ion-page>
-		<ion-header :translucent="true">
-			<ion-toolbar>
-				<ion-title class="ion-text-center">Perfil</ion-title>
-			</ion-toolbar>
-		</ion-header>
-
 		<ion-content :fullscreen="true" class="profile-content">
 			<section>
 				<ion-card class="profile-card">
@@ -31,18 +25,6 @@
 								<ion-label>
 									<h3>Correo</h3>
 									<p>{{ currentUserProfile?.email ?? '—' }}</p>
-								</ion-label>
-							</ion-item>
-							<ion-item>
-								<ion-label>
-									<h3>Rol</h3>
-									<p class="text-uppercase">{{ currentUserProfile?.rol ?? '—' }}</p>
-								</ion-label>
-							</ion-item>
-							<ion-item>
-								<ion-label>
-									<h3>ID de usuario</h3>
-									<p>{{ currentUserProfile?.id ?? '—' }}</p>
 								</ion-label>
 							</ion-item>
 						</ion-list>
@@ -230,7 +212,9 @@ const redirectToLogin = () => {
 
 <style scoped>
 .profile-content {
-	--background: var(--ion-color-light, #f5f5f5);
+	/* Force a full white canvas for the profile screen */
+	--background: #ffffff;
+	background: #ffffff;
 	padding: 20px 16px 32px;
 	display: flex;
 	flex-direction: column;
