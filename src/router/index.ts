@@ -26,7 +26,6 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), meta: { requiresAuth: true } },
   { path: '/adminHome', name: 'AdminHome', component: AdminHome, meta: { requiresAuth: true } },
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail, meta: { requiresAuth: true } },
-  { path: '/adminProfile', name: 'AdminProfile', component: HomePage, meta: { requiresAuth: true } },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment, meta: { requiresAuth: true } },
   { path: '/tendenciasAnalisis', name: 'TendenciasAnalisis', component: TendenciasAnalisis, meta: { requiresAuth: true } },
   { path: '/analistaHome', name: 'AnalistaHome', component: HomePage, meta: { requiresAuth: true } },
