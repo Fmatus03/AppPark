@@ -10,6 +10,7 @@ import IncidentManagment from '@/views/IncidentManagment.vue';
 import AdminIncidentDetail from '@/views/AdminIncidentDetail.vue';
 import { useSession } from '@/composables/useSession';
 import IncidentDetail from '@/views/IncidentDetail.vue';
+import AdminHome from '@/views/AdminHome.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -21,7 +22,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/incidentDetail', name: 'IncidentDetail', component: IncidentDetail , meta: { requiresAuth: true } },
   { path: '/profile', name: 'Profile', component: HomePage, meta: { requiresAuth: true } },
   { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), meta: { requiresAuth: true } },
-  { path: '/adminHome', name: 'AdminHome', component: HomePage, meta: { requiresAuth: true } },
+  { path: '/adminHome', name: 'AdminHome', component: AdminHome, meta: { requiresAuth: true } },
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail, meta: { requiresAuth: true } },
   { path: '/adminProfile', name: 'AdminProfile', component: HomePage, meta: { requiresAuth: true } },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment, meta: { requiresAuth: true } },
