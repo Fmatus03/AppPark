@@ -4,7 +4,7 @@
       <div class="login-wrapper">
         <div class="login-logo" aria-label="Logo de la aplicación">
           <div class="logo-mark">AP</div>
-          <h1 class="logo-title">App Genérica</h1>
+          <h1 class="logo-title">App Park</h1>
         </div>
 
         <form class="login-form" @submit.prevent="onSubmit">
