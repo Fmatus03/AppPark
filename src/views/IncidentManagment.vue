@@ -161,9 +161,9 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { IonContent, IonIcon, IonPage, IonSpinner, onIonViewWillEnter } from '@ionic/vue';
+import { IonContent, IonIcon, IonPage, IonSpinner, onIonViewWillEnter, onIonViewWillLeave } from '@ionic/vue';
 import { createOutline } from 'ionicons/icons';
-import { useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import axios from 'axios';
 import { useSession } from '@/composables/useSession';
 
@@ -559,11 +559,30 @@ const applyFilters = () => {
 	void fetchIncidents();
 };
 
-const resetFilters = () => {
+const applyDefaultFilters = () => {
 	Object.assign(workingFilters, defaultFilters);
 	activeFilters.value = { ...defaultFilters };
 	pagination.page = 0;
+};
+
+const resetFilters = () => {
+	applyDefaultFilters();
 	void fetchIncidents();
+};
+
+const clearViewState = () => {
+	applyDefaultFilters();
+	incidents.value = [];
+	totalResults.value = 0;
+	loadError.value = null;
+	pagination.totalElements = 0;
+	pagination.totalPages = 1;
+	pagination.size = DEFAULT_PAGE_SIZE;
+	isLoadingIncidents.value = false;
+	referenceDataLoaded.value = false;
+	routes.value = [];
+	categories.value = [];
+	states.value = [];
 };
 
 const initializeView = async () => {
@@ -603,6 +622,15 @@ onIonViewWillEnter(() => {
 	}
 
 	void initializeView();
+});
+
+onIonViewWillLeave(() => {
+	clearViewState();
+});
+
+onBeforeRouteLeave((_to, _from, next) => {
+	clearViewState();
+	next();
 });
 </script>
 

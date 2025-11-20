@@ -94,32 +94,57 @@
 								Aún no has añadido evidencia fotográfica.
 							</p>
 							<div v-else class="photos-grid">
-								<ion-img
+								<div
 									v-for="(photo, index) in evidencePhotos"
 									:key="photo.webPath ?? photo.path ?? index"
-									:src="photoSrc(photo)"
-									alt="Evidencia del incidente"
-									loading="lazy"
-								/>
+									class="photo-item"
+								>
+									<ion-img
+										:src="photoSrc(photo)"
+										alt="Evidencia del incidente"
+										loading="lazy"
+									/>
+									<ion-button
+										class="remove-photo-btn"
+										fill="solid"
+										color="danger"
+										size="small"
+										type="button"
+										@click="removePhoto(index)"
+										aria-label="Quitar imagen"
+									>
+										<ion-icon slot="icon-only" :icon="trashOutline" aria-hidden="true" />
+									</ion-button>
+								</div>
 							</div>
 						</div>
 
 						<div class="evidence-block">
 							<h3 class="evidence-subtitle">Audio</h3>
 							<div class="audio-controls">
-								<ion-button expand="block" :disabled="isRecordingAudio || isProcessingAudio" @click="startAudioRecording">
-									<ion-icon slot="start" :icon="micOutline" aria-hidden="true" />
-									Iniciar grabación
-								</ion-button>
 								<ion-button
 									expand="block"
-									color="danger"
-									:disabled="!isRecordingAudio || isProcessingAudio"
-									@click="stopAudioRecording"
+									:class="['record-button', { 'is-recording': isRecordingAudio }]"
+									:color="isRecordingAudio ? 'danger' : 'primary'"
+									:disabled="isProcessingAudio"
+									:aria-pressed="isRecordingAudio"
+									@mousedown.prevent="handleRecordButtonDown"
+									@mouseup.prevent="handleRecordButtonUp"
+									@mouseleave="handleRecordButtonCancel"
+									@touchstart.prevent="handleRecordButtonDown"
+									@touchend.prevent="handleRecordButtonUp"
+									@touchcancel.prevent="handleRecordButtonCancel"
 								>
-									<ion-icon slot="start" :icon="stopCircleOutline" aria-hidden="true" />
-									Detener y guardar
+									<ion-icon
+										slot="start"
+										:icon="isRecordingAudio ? stopCircleOutline : micOutline"
+										aria-hidden="true"
+									/>
+									{{ isRecordingAudio ? 'Suelta para guardar' : 'Mantén presionado para grabar' }}
 								</ion-button>
+								<p class="recording-hint" role="status">
+									{{ isRecordingAudio ? 'Grabando… suelta para finalizar.' : 'Mantén presionado para grabar audio.' }}
+								</p>
 							</div>
 
 							<p v-if="!audioEvidence.length" class="evidence-placeholder">
@@ -183,11 +208,14 @@ import {
 	arrowBackOutline,
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
-import axios from 'axios';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { HTTP } from '@awesome-cordova-plugins/http';
 import { useSession } from '@/composables/useSession';
+import { isAndroidNativeApp, parseFetchResponse, throwFetchError } from '@/utils/httpHelpers';
 
 type Category = 'Seguridad' | 'Mantenimiento' | 'Servicios' | 'Otros';
 
@@ -206,6 +234,7 @@ const isCapturing = ref(false);
 const audioEvidence = ref<AudioEvidence[]>([]);
 const isRecordingAudio = ref(false);
 const isProcessingAudio = ref(false);
+const isRecordGestureActive = ref(false);
 const audioPermissionGranted = ref<boolean | null>(null);
 const router = useRouter();
 const latitude = ref<number | null>(null);
@@ -232,12 +261,19 @@ const addEvidencePhoto = (photo: Photo) => {
 	evidencePhotos.value = [...evidencePhotos.value, photo];
 };
 
+const removePhoto = (index: number) => {
+	evidencePhotos.value = evidencePhotos.value.filter((_, idx) => idx !== index);
+};
+
 type AudioEvidence = {
 	id: number;
 	dataUrl: string;
 	createdAt: string;
 	durationMs?: number;
 	name: string;
+	mimeType?: string | null;
+	base64?: string | null;
+	path?: string | null;
 };
 
 const ensureAudioPermission = async () => {
@@ -267,7 +303,7 @@ const photoSrc = (photo: Photo) => {
 	}
 
 	if (photo.path) {
-		return photo.path;
+		return Capacitor.convertFileSrc(photo.path);
 	}
 
 	if (photo.base64String) {
@@ -357,6 +393,9 @@ const stopAudioRecording = async () => {
 						createdAt: new Date().toLocaleString(),
 						durationMs: value.msDuration,
 						name: `Audio ${audioEvidence.value.length + 1}`,
+						mimeType: value.mimeType ?? 'audio/aac',
+						base64: value.recordDataBase64 ?? null,
+						path: value.path ?? null,
 					},
 				];
 			}
@@ -376,7 +415,7 @@ const buildAudioDataUrl = (base64?: string | null, mimeType?: string | null, pat
 	}
 
 	if (path) {
-		return path;
+		return Capacitor.convertFileSrc(path);
 	}
 
 	return null;
@@ -384,6 +423,305 @@ const buildAudioDataUrl = (base64?: string | null, mimeType?: string | null, pat
 
 const removeAudioEvidence = (id: number) => {
 	audioEvidence.value = audioEvidence.value.filter((entry) => entry.id !== id);
+};
+
+const handleRecordButtonDown = async () => {
+	if (isRecordGestureActive.value || isProcessingAudio.value) {
+		return;
+	}
+
+	isRecordGestureActive.value = true;
+
+	try {
+		await startAudioRecording();
+	} finally {
+		if (!isRecordingAudio.value) {
+			isRecordGestureActive.value = false;
+		}
+	}
+};
+
+const finalizeRecordingGesture = async () => {
+	if (!isRecordGestureActive.value) {
+		return;
+	}
+
+	isRecordGestureActive.value = false;
+
+	if (!isRecordingAudio.value || isProcessingAudio.value) {
+		return;
+	}
+
+	await stopAudioRecording();
+};
+
+const handleRecordButtonUp = async () => {
+	await finalizeRecordingGesture();
+};
+
+const handleRecordButtonCancel = async () => {
+	await finalizeRecordingGesture();
+};
+
+const getAudioExtension = (mime?: string | null) => {
+	if (!mime) {
+		return 'aac';
+	}
+
+	const [, subtype] = mime.split('/');
+	return subtype ? subtype.replace('+', '') : 'aac';
+};
+
+const base64ToBlob = (base64: string, mimeType: string) => {
+	const byteCharacters = atob(base64);
+	const blobParts: BlobPart[] = [];
+
+	for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
+		const slice = byteCharacters.slice(offset, offset + 1024);
+		const byteNumbers = new Array(slice.length);
+		for (let i = 0; i < slice.length; i += 1) {
+			byteNumbers[i] = slice.charCodeAt(i);
+		}
+		blobParts.push(new Uint8Array(byteNumbers));
+	}
+
+	return new Blob(blobParts, { type: mimeType });
+};
+
+const blobToBase64 = (blob: Blob) =>
+	new Promise<string>((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+		reader.onloadend = () => {
+			const result = reader.result;
+			if (typeof result === 'string') {
+				const [, data] = result.split(',');
+				resolve(data ?? '');
+			} else {
+				reject(new Error('Formato de archivo no soportado.'));
+			}
+		};
+		reader.readAsDataURL(blob);
+	});
+
+const ensureWebAccessiblePath = (path?: string | null) => {
+	if (!path) {
+		return null;
+	}
+
+	if (path.startsWith('file://') || path.startsWith('content://')) {
+		return Capacitor.convertFileSrc(path);
+	}
+
+	return path;
+};
+
+const photoToBlob = async (photo: Photo) => {
+	const sourceUrl = ensureWebAccessiblePath(photo.webPath ?? photo.path);
+	if (!sourceUrl) {
+		throw new Error('No se encontró la ruta de la foto.');
+	}
+
+	const response = await fetch(sourceUrl);
+	if (!response.ok) {
+		throw new Error('No se pudo leer la foto seleccionada.');
+	}
+
+	return response.blob();
+};
+
+const audioToBlob = async (audio: AudioEvidence) => {
+	if (audio.base64) {
+		return base64ToBlob(audio.base64, audio.mimeType ?? 'audio/aac');
+	}
+
+	if (audio.dataUrl?.startsWith('data:')) {
+		const [, payload] = audio.dataUrl.split(',');
+		if (payload) {
+			return base64ToBlob(payload, audio.mimeType ?? 'audio/aac');
+		}
+	}
+
+	const webPath = ensureWebAccessiblePath(audio.path ?? undefined);
+	if (!webPath) {
+		throw new Error('No se encontró la ruta del audio.');
+	}
+
+	const response = await fetch(webPath);
+	if (!response.ok) {
+		throw new Error('No se pudo leer el archivo de audio.');
+	}
+
+	return response.blob();
+};
+
+type NativeFileReference = {
+	filePath: string;
+	tempPath?: string;
+};
+
+const TEMP_UPLOAD_FOLDER = 'incident-uploads';
+
+const writeBase64File = async (base64: string, filename: string): Promise<NativeFileReference> => {
+	const virtualPath = `${TEMP_UPLOAD_FOLDER}/${Date.now()}-${filename}`;
+	await Filesystem.writeFile({
+		path: virtualPath,
+		data: base64,
+		directory: Directory.Cache,
+		recursive: true,
+	});
+	const { uri } = await Filesystem.getUri({ path: virtualPath, directory: Directory.Cache });
+	return { filePath: uri, tempPath: virtualPath };
+};
+
+const writeBlobFile = async (blob: Blob, filename: string): Promise<NativeFileReference> => {
+	const base64 = await blobToBase64(blob);
+	return writeBase64File(base64, filename);
+};
+
+const resolvePhotoFilePath = async (photo: Photo, index: number): Promise<NativeFileReference | null> => {
+	if (photo.path) {
+		return { filePath: photo.path };
+	}
+
+	const blob = await photoToBlob(photo);
+	const mimeType = blob.type || 'image/jpeg';
+	const [, subtype] = mimeType.split('/');
+	const extension = subtype ? subtype.replace('+', '') : 'jpg';
+	return writeBlobFile(blob, `foto-${index + 1}.${extension}`);
+};
+
+const resolveAudioFilePath = async (audio: AudioEvidence, index: number): Promise<NativeFileReference | null> => {
+	if (audio.path) {
+		return { filePath: audio.path };
+	}
+
+	if (audio.base64) {
+		return writeBase64File(audio.base64, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
+	}
+
+	if (audio.dataUrl?.startsWith('data:')) {
+		const [, payload] = audio.dataUrl.split(',');
+		if (payload) {
+			return writeBase64File(payload, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
+		}
+	}
+
+	return null;
+};
+
+const cleanupTempFiles = async (virtualPaths: string[]) => {
+	await Promise.all(
+		virtualPaths.map((path) =>
+			Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(() => undefined)
+		)
+	);
+};
+
+const prepareNativeUploadFiles = async () => {
+	const tempPaths: string[] = [];
+	const filePaths: string[] = [];
+	const paramNames: string[] = [];
+
+	const photoRefs = await Promise.all(
+		evidencePhotos.value.map((photo, index) => resolvePhotoFilePath(photo, index))
+	);
+	photoRefs.forEach((ref) => {
+		if (!ref) {
+			return;
+		}
+		filePaths.push(ref.filePath);
+		paramNames.push('fotos');
+		if (ref.tempPath) {
+			tempPaths.push(ref.tempPath);
+		}
+	});
+
+	const audioRefs = await Promise.all(
+		audioEvidence.value.map((audio, index) => resolveAudioFilePath(audio, index))
+	);
+	audioRefs.forEach((ref) => {
+		if (!ref) {
+			return;
+		}
+		filePaths.push(ref.filePath);
+		paramNames.push('audios');
+		if (ref.tempPath) {
+			tempPaths.push(ref.tempPath);
+		}
+	});
+
+	return { tempPaths, filePaths, paramNames };
+};
+
+const uploadIncidentNative = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const { tempPaths, filePaths, paramNames } = await prepareNativeUploadFiles();
+
+	try {
+		if (filePaths.length > 0) {
+			await HTTP.uploadFile(
+				endpoint,
+				{ incidente: JSON.stringify(incidentData) },
+				headers,
+				filePaths,
+				paramNames
+			);
+		} else {
+			await HTTP.sendRequest(endpoint, {
+				method: 'post',
+				serializer: 'multipart',
+				headers,
+				data: { incidente: JSON.stringify(incidentData) },
+			});
+		}
+	} finally {
+		await cleanupTempFiles(tempPaths);
+	}
+};
+
+const uploadIncidentWeb = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const formData = new FormData();
+	formData.append(
+		'incidente',
+		new Blob([JSON.stringify(incidentData)], { type: 'application/json' })
+	);
+
+	await Promise.all(
+		evidencePhotos.value.map(async (photo, index) => {
+			const blob = await photoToBlob(photo);
+			const mimeType = blob.type || 'image/jpeg';
+			const [, subtype] = mimeType.split('/');
+			const extension = subtype ? subtype.replace('+', '') : 'jpg';
+			formData.append('fotos', blob, `foto-${index + 1}.${extension}`);
+		})
+	);
+
+	await Promise.all(
+		audioEvidence.value.map(async (audio, index) => {
+			const blob = await audioToBlob(audio);
+			formData.append('audios', blob, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
+		})
+	);
+
+	const response = await fetch(endpoint, {
+		method: 'POST',
+		body: formData,
+		headers,
+	});
+
+	if (!response.ok) {
+		await throwFetchError(response);
+	}
+
+	await parseFetchResponse(response);
 };
 
 const submitIncident = async () => {
@@ -436,41 +774,26 @@ const submitIncident = async () => {
 	}
 
 	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes`;
-	const formData = new FormData();
-	formData.append(
-		'incidente',
-		new Blob([JSON.stringify(incidentData)], { type: 'application/json' })
-	);
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+		Authorization: `Bearer ${token}`,
+	};
 
 	console.info('incidente-submit', JSON.stringify(incidentData, null, 2));
 
 	try {
-		const response = await axios.post(endpoint, formData, {
-			headers: {
-				Accept: 'application/json',
-				Authorization: `Bearer ${token}`,
-			},
-		});
+		if (isAndroidNativeApp()) {
+			await uploadIncidentNative(endpoint, headers, incidentData);
+		} else {
+			await uploadIncidentWeb(endpoint, headers, incidentData);
+		}
 
-		console.info('incidente-submit-success', JSON.stringify(response.data, null, 2));
+		console.info('incidente-submit-success');
 		router.push({ name: 'Home' });
 	} catch (error) {
-		if (axios.isAxiosError(error)) {
-			console.error(
-				'incidente-submit-error',
-				JSON.stringify(
-					{
-						status: error.response?.status,
-						data: error.response?.data,
-						message: error.message,
-					},
-					null,
-					2
-				)
-			);
-		} else {
-			console.error('incidente-submit-error', error);
-		}
+		const status = (error as { status?: number })?.status;
+		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
+		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
 	}
 };
 </script>
@@ -598,6 +921,22 @@ ion-input::part(label) {
 	gap: 0.75rem;
 }
 
+.record-button {
+	--border-radius: 14px;
+	font-weight: 600;
+}
+
+.record-button.is-recording {
+	--background: var(--ion-color-danger, #eb445a);
+}
+
+.recording-hint {
+	margin: 0;
+	text-align: center;
+	font-size: 0.85rem;
+	color: var(--ion-color-medium, #6b7280);
+}
+
 .evidence-placeholder {
 	margin: 0;
 	color: var(--ion-color-medium, #6b7280);
@@ -608,6 +947,20 @@ ion-input::part(label) {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 	gap: 0.75rem;
+}
+
+.photo-item {
+	position: relative;
+}
+
+.remove-photo-btn {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 1;
+	--border-radius: 999px;
+	width: 28px;
+	height: 28px;
 }
 
 .photos-grid ion-img {
@@ -652,6 +1005,8 @@ ion-input::part(label) {
 	margin-top: 0.5rem;
 	--border-radius: 16px;
 	font-weight: 600;
+	--color: #ffffff;
+	color: #ffffff;
 }
 
 </style>

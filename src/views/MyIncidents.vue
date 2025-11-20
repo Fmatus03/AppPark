@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import {
 	IonCard,
 	IonCardContent,
@@ -96,10 +96,12 @@ import {
 	IonTitle,
 	IonToolbar,
 	onIonViewWillEnter,
+	onIonViewWillLeave,
 } from '@ionic/vue';
 import { calendarOutline, chevronForwardOutline } from 'ionicons/icons';
-import axios from 'axios';
+import { HTTP } from '@awesome-cordova-plugins/http';
 import { useSession } from '@/composables/useSession';
+import { parseFetchResponse, parseNativeResponse, throwFetchError, isAndroidNativeApp } from '@/utils/httpHelpers';
 
 type IncidentStatus = 'abierto' | 'en revision' | 'cerrado';
 
@@ -126,6 +128,13 @@ const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 const incidents = ref<Incident[]>([]);
 const isLoading = ref(false);
 const errorMessage = ref('');
+
+const resetIncidentsState = () => {
+	incidents.value = [];
+	searchQuery.value = '';
+	isLoading.value = false;
+	errorMessage.value = '';
+};
 
 const goToIncident = (incidentId: number) => {
 	router.push({
@@ -236,20 +245,35 @@ const fetchIncidents = async () => {
 
 	try {
 		const endpoint = `${apiBaseUrl}api/incidentes/mis-incidentes`;
-		const response = await axios.get<BackendIncidentResponse[]>(endpoint, {
-			headers: {
-				Accept: 'application/json',
-				Authorization: `Bearer ${authToken.value}`,
-			},
-		});
+		const headers = {
+			Accept: 'application/json',
+			Authorization: `Bearer ${authToken.value}`,
+		};
 
-		const rawIncidents = Array.isArray(response.data) ? response.data : [];
-		const mappedIncidents = rawIncidents.map(mapBackendIncident);
+		let rawIncidents: BackendIncidentResponse[] = [];
+
+		if (isAndroidNativeApp()) {
+			const response = await HTTP.get(endpoint, {}, headers);
+			rawIncidents = parseNativeResponse<BackendIncidentResponse[]>(response.data) ?? [];
+		} else {
+			const fetchResponse = await fetch(endpoint, {
+				method: 'GET',
+				headers,
+			});
+			if (!fetchResponse.ok) {
+				await throwFetchError(fetchResponse);
+			}
+			rawIncidents = (await parseFetchResponse<BackendIncidentResponse[]>(fetchResponse)) ?? [];
+		}
+
+		const normalizedIncidents = Array.isArray(rawIncidents) ? rawIncidents : [];
+		const mappedIncidents = normalizedIncidents.map(mapBackendIncident);
 		mappedIncidents.sort((a, b) => getSortableTime(b.date) - getSortableTime(a.date));
 		incidents.value = mappedIncidents;
 	} catch (error) {
 		console.error('incidents-fetch-error', error);
-		if (axios.isAxiosError(error) && error.response?.status === 401) {
+		const status = (error as { status?: number })?.status;
+		if (status === 401) {
 			errorMessage.value = 'Tu sesión expiró. Inicia sesión nuevamente.';
 		} else {
 			errorMessage.value = 'No fue posible cargar tus incidentes. Inténtalo nuevamente más tarde.';
@@ -285,6 +309,14 @@ onIonViewWillEnter(() => {
 	}
 
 	void fetchIncidents();
+});
+
+onIonViewWillLeave(() => {
+	resetIncidentsState();
+});
+
+onBeforeRouteLeave(() => {
+	resetIncidentsState();
 });
 </script>
 
