@@ -1,7 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
 
-const DEFAULT_BASE_URL = 'https://YOUR_API_URL/api/analista/reportes/';
-
 type PostPayload = Record<string, unknown>;
 
 type UseAnalyticsApiOptions = {
@@ -11,13 +9,23 @@ type UseAnalyticsApiOptions = {
 	getToken?: () => string | undefined;
 };
 
+const appendAnalyticsPath = (base: string) => {
+	const sanitizedBase = base.replace(/\/+$/, '');
+	const hasAnalyticsPath = /\/api\/analista\/reportes\/?$/.test(sanitizedBase);
+	const analyticsBase = hasAnalyticsPath ? sanitizedBase : `${sanitizedBase}/api/analista/reportes`;
+	return `${analyticsBase.replace(/\/+$/, '')}/`;
+};
+
 export const useAnalyticsApi = (options?: UseAnalyticsApiOptions) => {
-	const baseURL = (options?.baseURL ?? import.meta.env.VITE_ANALYTICS_API_URL ?? DEFAULT_BASE_URL).replace(/\/*$/, '/');
+	const envBase = import.meta.env.VITE_PARK_APP_API_URL as string | undefined;
+	const resolvedBase = options?.baseURL ?? envBase ?? '';
+	const baseURL = appendAnalyticsPath(resolvedBase);
 
 	const client: AxiosInstance = axios.create({
 		baseURL,
 		headers: {
 			Accept: 'application/json',
+			'Content-Type': 'application/json',
 		},
 	});
 
