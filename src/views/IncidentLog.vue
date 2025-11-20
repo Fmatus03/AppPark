@@ -174,14 +174,6 @@
 				<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
 					Espacio reservado
 				</ion-chip>
-				<ion-toast
-					:is-open="isErrorToastOpen"
-					:message="errorToastMessage"
-					color="danger"
-					position="bottom"
-					:duration="5500"
-					@didDismiss="isErrorToastOpen = false"
-				/>
 			</div>
 		</IonContent>
 	</IonPage>
@@ -221,12 +213,10 @@ import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
 import { HTTP } from '@awesome-cordova-plugins/http';
-import { Filesystem, Directory } from '@capacitor/filesystem';
 import { useSession } from '@/composables/useSession';
 import { isAndroidNativeApp, parseFetchResponse, throwFetchError } from '@/utils/httpHelpers';
 
 type Category = 'Seguridad' | 'Mantenimiento' | 'Servicios' | 'Otros';
-type CachedPhoto = Photo & { cachedPath?: string };
 
 const incidentTitle = ref('');
 const incidentDescription = ref('');
@@ -249,35 +239,6 @@ const router = useRouter();
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
 const { authToken } = useSession();
-
-const errorToastMessage = ref('');
-const isErrorToastOpen = ref(false);
-
-const showErrorOverlay = (message: string) => {
-	errorToastMessage.value = message;
-	isErrorToastOpen.value = true;
-};
-
-const stringifyErrorPayload = (payload: unknown) => {
-	if (payload == null) {
-		return 'Sin detalles adicionales.';
-	}
-	if (typeof payload === 'string') {
-		return payload;
-	}
-	try {
-		const serialized = JSON.stringify(payload);
-		return serialized.length > 400 ? `${serialized.slice(0, 400)}…` : serialized;
-	} catch (error) {
-		console.error('error-stringify-payload', error);
-		return 'Sin detalles adicionales.';
-	}
-};
-
-const getCameraResultType = (source: CameraSource) =>
-	isAndroidNativeApp() && source === CameraSource.Camera
-		? CameraResultType.Base64
-		: CameraResultType.Uri;
 
 const clearTitle = () => {
 	incidentTitle.value = '';
@@ -351,110 +312,20 @@ const photoSrc = (photo: Photo) => {
 	return '';
 };
 
-const blobToBase64 = (blob: Blob) =>
-	new Promise<string>((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onloadend = () => {
-			const result = reader.result as string;
-			const commaIndex = result.indexOf(',');
-			resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
-		};
-		reader.onerror = () => reject(reader.error ?? new Error('No se pudo convertir el archivo.'));
-		reader.readAsDataURL(blob);
-	});
-
-const getPhotoExtension = (photo: Photo) => {
-	const format = photo.format?.toLowerCase();
-	if (!format) {
-		return 'jpeg';
-	}
-	return format.startsWith('image/') ? format.replace('image/', '') : format;
-};
-
-const getPhotoMimeType = (photo: Photo, fallback = 'image/jpeg') => {
-	const format = photo.format?.toLowerCase();
-	if (!format) {
-		return fallback;
-	}
-	return format.startsWith('image/') ? format : `image/${format}`;
-};
-
-const persistNativeCameraPhoto = async (photo: Photo): Promise<CachedPhoto> => {
-	if (!isAndroidNativeApp()) {
-		return photo;
-	}
-
-	try {
-		let base64Payload = photo.base64String?.trim() ?? '';
-		let mimeType = getPhotoMimeType(photo);
-
-		if (!base64Payload) {
-			const accessiblePath = photo.webPath ?? ensureWebAccessiblePath(photo.path);
-			if (accessiblePath) {
-				const response = await fetch(accessiblePath);
-				if (response.ok) {
-					const blob = await response.blob();
-					mimeType = blob.type || mimeType;
-					base64Payload = await blobToBase64(blob);
-				}
-			}
-		} else {
-			// normalize mime type if Camera provided format but no MIME metadata.
-			const blob = base64ToBlob(base64Payload, mimeType);
-			mimeType = blob.type || mimeType;
-		}
-
-		if (!base64Payload) {
-			showErrorOverlay('No se pudo guardar la foto capturada. Intenta nuevamente.');
-			return photo;
-		}
-
-		const extension = (() => {
-			const [, subtype] = mimeType.split('/');
-			return subtype ?? getPhotoExtension(photo);
-		})();
-		const filename = `incident-photo-${Date.now()}-${Math.round(Math.random() * 1e6)}.${extension}`;
-		await Filesystem.writeFile({
-			path: filename,
-			data: base64Payload,
-			directory: Directory.Cache,
-			recursive: true,
-		});
-		const { uri } = await Filesystem.getUri({ path: filename, directory: Directory.Cache });
-		const cachedPhoto: CachedPhoto = {
-			...photo,
-			cachedPath: filename,
-			path: uri,
-			webPath: Capacitor.convertFileSrc(uri),
-			base64String: base64Payload,
-			format: extension,
-		};
-		return cachedPhoto;
-	} catch (error) {
-		console.error('persist-camera-photo-error', error);
-		showErrorOverlay('No se pudo guardar la foto en el dispositivo. Intenta nuevamente.');
-		return photo;
-	}
-};
-
 const capturePhoto = async () => {
 	isCapturing.value = true;
 	try {
-		const rawPhoto = await Camera.getPhoto({
+		const result = await Camera.getPhoto({
 			quality: 85,
 			allowEditing: false,
-			resultType: getCameraResultType(CameraSource.Camera),
+			resultType: CameraResultType.Uri,
 			source: CameraSource.Camera,
 			saveToGallery: false,
 		});
-		const processedPhoto = isAndroidNativeApp()
-			? await persistNativeCameraPhoto(rawPhoto)
-			: rawPhoto;
-		addEvidencePhoto(processedPhoto);
+		addEvidencePhoto(result);
 	} catch (error) {
 		if ((error as Error)?.message !== 'User cancelled photos app') {
 			console.error('No se pudo tomar la foto', error);
-			showErrorOverlay('No se pudo tomar la foto. Intenta nuevamente.');
 		}
 	} finally {
 		isCapturing.value = false;
@@ -466,7 +337,7 @@ const pickFromGallery = async () => {
 		const result = await Camera.getPhoto({
 			quality: 85,
 			allowEditing: false,
-			resultType: getCameraResultType(CameraSource.Photos),
+			resultType: CameraResultType.Uri,
 			source: CameraSource.Photos,
 			saveToGallery: false,
 		});
@@ -474,7 +345,6 @@ const pickFromGallery = async () => {
 	} catch (error) {
 		if ((error as Error)?.message !== 'User cancelled photos app') {
 			console.error('No se pudo seleccionar la imagen', error);
-			showErrorOverlay('No se pudo seleccionar la imagen. Intenta nuevamente.');
 		}
 	}
 };
@@ -629,34 +499,7 @@ const ensureWebAccessiblePath = (path?: string | null) => {
 	return path;
 };
 
-const readCachedPhotoBlob = async (photo: Photo) => {
-	const cachedPath = (photo as CachedPhoto).cachedPath;
-	if (!cachedPath) {
-		return null;
-	}
-	try {
-		const { data } = await Filesystem.readFile({
-			path: cachedPath,
-			directory: Directory.Cache,
-		});
-		const base64Payload = typeof data === 'string' ? data : await blobToBase64(data);
-		return base64ToBlob(base64Payload, getPhotoMimeType(photo));
-	} catch (error) {
-		console.warn('read-cached-photo-failed', { cachedPath, error });
-		return null;
-	}
-};
-
 const photoToBlob = async (photo: Photo) => {
-	const cached = await readCachedPhotoBlob(photo);
-	if (cached) {
-		return cached;
-	}
-
-	if (photo.base64String && photo.base64String.trim().length > 0) {
-		return base64ToBlob(photo.base64String, getPhotoMimeType(photo));
-	}
-
 	const sourceUrl = photo.webPath ?? ensureWebAccessiblePath(photo.path);
 	if (!sourceUrl) {
 		throw new Error('No se encontró la ruta de la foto.');
@@ -808,7 +651,6 @@ const submitIncident = async () => {
 		longitude.value = coords.longitude;
 	} catch (error) {
 		console.error('No se pudo obtener la ubicación del dispositivo', error);
-		showErrorOverlay('No se pudo obtener tu ubicación. Activa el GPS e inténtalo nuevamente.');
 		return;
 	}
 
@@ -831,7 +673,6 @@ const submitIncident = async () => {
 
 	if (!apiBaseUrl) {
 		console.error('incidente-submit', { error: 'missing-api-base-url' });
-		showErrorOverlay('Falta configurar la URL del servidor. Intenta más tarde.');
 		return;
 	}
 
@@ -839,7 +680,6 @@ const submitIncident = async () => {
 
 	if (!token) {
 		console.error('incidente-submit', { error: 'missing-auth-token' });
-		showErrorOverlay('Tu sesión expiró. Ingresa nuevamente para continuar.');
 		return;
 	}
 
@@ -866,8 +706,6 @@ const submitIncident = async () => {
 		const status = (error as { status?: number })?.status;
 		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
 		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
-		const detail = stringifyErrorPayload(data);
-		showErrorOverlay(`No se pudo enviar el incidente (${status ?? 'sin código'}). ${detail}`);
 	}
 };
 </script>

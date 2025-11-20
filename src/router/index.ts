@@ -11,6 +11,7 @@ import AdminIncidentDetail from '@/views/AdminIncidentDetail.vue';
 import { useSession } from '@/composables/useSession';
 import IncidentDetail from '@/views/IncidentDetail.vue';
 import AdminHome from '@/views/AdminHome.vue';
+import TendenciasAnalisis from '../views/TendenciasAnalisis.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -26,7 +27,8 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail, meta: { requiresAuth: true } },
   { path: '/adminProfile', name: 'AdminProfile', component: HomePage, meta: { requiresAuth: true } },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment, meta: { requiresAuth: true } },
-  { path: '/tendenciasAnalisis', name: 'TendenciasAnalisis', component: HomePage, meta: { requiresAuth: true } },
+  { path: '/tendenciasAnalisis', name: 'TendenciasAnalisis', component: TendenciasAnalisis, meta: { requiresAuth: true } },
+  { path: '/analistaHome', name: 'AnalistaHome', component: HomePage, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({

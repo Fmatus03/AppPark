@@ -224,7 +224,7 @@ const onSubmit = async () => {
       );
 
       console.log('login-success', { correo, role, token });
-      const nextRoute = role === 'ADMIN' || role === 'ANALISTA' ? { name: 'AdminHome' } : { name: 'Home' };
+      const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
       try {
 		const activeElement = document.activeElement as HTMLElement | null;
 		activeElement?.blur();

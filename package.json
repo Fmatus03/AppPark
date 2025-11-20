@@ -26,6 +26,7 @@
     "@capacitor/status-bar": "^7.0.3",
     "@ionic/vue": "^8.2.3",
     "@ionic/vue-router": "^8.2.3",
+    "chart.js": "^4.4.7",
     "axios": "^1.13.2",
     "capacitor-voice-recorder": "^7.0.6",
     "cordova-plugin-advanced-http": "^3.3.1",

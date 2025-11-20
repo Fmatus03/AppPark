@@ -84,6 +84,12 @@
 					<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
 						Espacio reservado
 					</ion-chip>
+					<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
+						Espacio reservado
+					</ion-chip>
+					<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
+						Espacio reservado
+					</ion-chip>
 				</section>
 			</div>
 		</ion-content>
