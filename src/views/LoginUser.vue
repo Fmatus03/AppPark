@@ -212,6 +212,25 @@ const onSubmit = async () => {
       const correo = email.value;
       const token = data.token as string;
       const role = normalizeRole(data.rol);
+
+      // Platform-based access rules:
+      // - Android native app: only allow VISITANTE
+      // - Web (non-native): only allow ADMIN or ANALISTA
+      if (runningOnAndroidApp.value) {
+        if (role !== 'VISITANTE') {
+          errorMessage.value = 'Acceso denegado';
+          isSubmitting.value = false;
+          return;
+        }
+      } else {
+        if (role !== 'ADMIN' && role !== 'ANALISTA') {
+          errorMessage.value = 'Acceso denegado';
+          isSubmitting.value = false;
+          return;
+        }
+      }
+
+      // Persist session only after role is authorized
       const username = correo.split('@')[0] ?? 'Usuario';
       setSessionUser(
         {
@@ -226,11 +245,11 @@ const onSubmit = async () => {
       console.log('login-success', { correo, role, token });
       const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
       try {
-		const activeElement = document.activeElement as HTMLElement | null;
-		activeElement?.blur();
-	} catch (error) {
-		console.debug('login-blur-skip', error);
-	}
+        const activeElement = document.activeElement as HTMLElement | null;
+        activeElement?.blur();
+      } catch (error) {
+        console.debug('login-blur-skip', error);
+      }
       resetForm();
       router.push(nextRoute);
       return;

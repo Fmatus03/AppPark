@@ -78,14 +78,11 @@ import {
 	IonCardTitle,
 	IonChip,
 	IonContent,
-	IonHeader,
 	IonIcon,
 	IonItem,
 	IonLabel,
 	IonList,
 	IonPage,
-	IonTitle,
-	IonToolbar,
 } from '@ionic/vue';
 import { mailOutline } from 'ionicons/icons';
 import axios from 'axios';
