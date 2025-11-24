@@ -37,19 +37,35 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-	const session = useSession();
-	const user = session.currentUser.value;
+  const session = useSession();
+  const user = session.currentUser.value;
 
-	if (user && to.name === 'Login') {
-		const defaultRoute = user.role === 'VISITANTE' ? 'Home' : 'AdminHome';
-    return next({ name: defaultRoute });
-	}
+  const getDefaultRouteForUser = (u: { role?: string } | null) => {
+    if (!u) return 'Login';
+    if (u.role === 'VISITANTE') return 'Home';
+    if (u.role === 'ANALISTA') return 'AnalistaHome';
+    return 'AdminHome';
+  };
 
-	if (to.meta?.requiresAuth && !user) {
-		return next({ name: 'Login' });
-	}
+  // If the target route doesn't match any defined route -> handle as unknown route
+  if (!to.matched || to.matched.length === 0) {
+    if (user) {
+      return next({ name: getDefaultRouteForUser(user) });
+    }
+    return next({ name: 'Login' });
+  }
 
-	return next();
+  // Prevent logged users from opening the login page again
+  if (user && to.name === 'Login') {
+    return next({ name: getDefaultRouteForUser(user) });
+  }
+
+  // If route requires auth and there's no user, redirect to login
+  if (to.meta?.requiresAuth && !user) {
+    return next({ name: 'Login' });
+  }
+
+  return next();
 });
 
 export default router
