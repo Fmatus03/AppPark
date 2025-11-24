@@ -117,7 +117,7 @@ interface BackendIncidentResponse {
 	id: number | string | null;
 	titulo: string | null;
 	descripcion: string | null;
-	fechaReporte: string | null;
+	fechaCreacion: string | null;
 	estado: string | null;
 }
 
@@ -225,7 +225,7 @@ const mapBackendIncident = (incident: BackendIncidentResponse): Incident => {
 	return {
 		id: safeId,
 		title: incident.titulo?.trim() || 'Incidente sin título',
-		date: incident.fechaReporte ?? '',
+		date: incident.fechaCreacion ?? '',
 		description: incident.descripcion?.trim() || 'Sin descripción disponible.',
 		status: normalizeStatus(incident.estado),
 	};

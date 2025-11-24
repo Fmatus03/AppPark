@@ -4,7 +4,7 @@
 			<div class="register-wrapper">
 				<div class="register-logo" aria-label="Logo de la aplicación">
 					<div class="logo-mark">AP</div>
-					<h1 class="logo-title">App Genérica</h1>
+					<h1 class="logo-title">App Park</h1>
 					<p class="logo-subtitle">Crea tu cuenta</p>
 				</div>
 

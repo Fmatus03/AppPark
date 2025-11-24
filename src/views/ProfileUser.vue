@@ -1,5 +1,10 @@
 <template>
 	<ion-page>
+		<ion-header>
+			<ion-toolbar>
+				<ion-title>Perfil</ion-title>
+			</ion-toolbar>
+		</ion-header>
 		<ion-content :fullscreen="true" class="profile-content">
 			<section>
 				<ion-card class="profile-card">
@@ -83,6 +88,9 @@ import {
 	IonLabel,
 	IonList,
 	IonPage,
+	IonHeader,
+	IonToolbar,
+	IonTitle,
 } from '@ionic/vue';
 import { mailOutline } from 'ionicons/icons';
 import axios from 'axios';

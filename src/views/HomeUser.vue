@@ -114,8 +114,9 @@ onBeforeUnmount(async () => {
 
 <style scoped>
 .header-title {
-	width: 100%;
-	text-align: center;
+	width: auto;
+	text-align: left;
+	padding-left: 12px;
 }
 
 .map-content {
