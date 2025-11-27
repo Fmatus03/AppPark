@@ -53,10 +53,10 @@ const navItemIsActive = (item: NavItem) => {
 	right: 0;
 	bottom: 0;
 	z-index: 1100;
-	background: #ffffff;
+	background: var(--card-bg);
 	padding: 12px 18px env(safe-area-inset-bottom, 0px);
-	box-shadow: 0 -4px 16px rgba(25, 33, 61, 0.08);
-	border-top: 1px solid rgba(18, 22, 44, 0.08);
+	box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.05);
+	border-top: 1px solid var(--border-color);
 }
 
 :global(.has-mobile-navbar) .nav-shell {
@@ -78,7 +78,7 @@ const navItemIsActive = (item: NavItem) => {
 	align-items: center;
 	justify-content: center;
 	text-decoration: none;
-	color: var(--ion-color-medium-shade, #62636c);
+	color: var(--ion-text-secondary);
 	font-size: 0.75rem;
 	font-weight: 500;
 	gap: 4px;
@@ -86,9 +86,9 @@ const navItemIsActive = (item: NavItem) => {
 }
 
 .nav-item:focus-visible {
-	outline: 2px solid var(--ion-color-success, #2dd36f);
+	outline: 2px solid var(--ion-color-primary);
 	outline-offset: 4px;
-	border-radius: 8px;
+	border-radius: var(--radius-sm);
 }
 
 .nav-icon {
@@ -97,7 +97,7 @@ const navItemIsActive = (item: NavItem) => {
 }
 
 .nav-item.active {
-	color: var(--ion-color-success, #2dd36f);
+	color: var(--ion-color-primary);
 }
 
 .nav-item.active .nav-label {

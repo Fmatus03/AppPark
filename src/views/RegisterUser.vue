@@ -285,7 +285,9 @@ const onSubmit = async () => {
 
 <style scoped>
 .register-content {
-	--background: #f8f8f8;
+	--background: var(--page-bg);
+	--color: var(--ion-text-color);
+	color: var(--ion-text-color);
 }
 
 .register-wrapper {
@@ -310,26 +312,27 @@ const onSubmit = async () => {
 	width: 88px;
 	height: 88px;
 	border-radius: 24px;
-	background: #2e7d32;
-	color: #ffffff;
+	background: var(--ion-color-primary);
+	color: var(--ion-color-primary-contrast);
 	font-weight: 700;
 	font-size: 1.5rem;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	letter-spacing: 0.08em;
+	box-shadow: var(--shadow-md);
 }
 
 .logo-title {
 	font-size: 1.75rem;
 	font-weight: 600;
 	margin: 0;
-	color: #1f1f1f;
+	color: #0f172a; /* Force dark color */
 }
 
 .logo-subtitle {
 	margin: 0;
-	color: #4f4f4f;
+	color: var(--ion-text-secondary);
 	font-size: 1rem;
 }
 
@@ -342,16 +345,28 @@ const onSubmit = async () => {
 }
 
 .form-list {
-	border-radius: 18px;
-	background: #ffffff;
+	border-radius: var(--radius-lg);
+	background: var(--card-bg);
 	padding: 0 0.5rem;
-	box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08);
+	box-shadow: var(--shadow-md);
+}
+
+.form-list ion-item {
+	--background: var(--card-bg);
+	--color: #0f172a; /* Force dark color */
+	--border-color: var(--border-color);
+}
+
+.form-list ion-input {
+	--color: #0f172a; /* Force dark color */
+	--placeholder-color: #64748b;
+	color: #0f172a;
 }
 
 .register-button {
-	--background: #2e7d32;
-	--background-activated: #27682a;
-	--border-radius: 16px;
+	--background: var(--ion-color-primary);
+	--background-activated: var(--ion-color-primary-shade);
+	--border-radius: var(--radius-lg);
 	--padding-top: 16px;
 	--padding-bottom: 16px;
 	font-weight: 600;
@@ -366,6 +381,7 @@ const onSubmit = async () => {
 .support-link {
 	font-weight: 500;
 	text-transform: none;
+	color: var(--ion-text-secondary);
 }
 
 @media (max-width: 480px) {

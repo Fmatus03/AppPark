@@ -75,10 +75,10 @@ const navItemIsActive = (item: NavItem) => {
 	top: 0;
 	left: 0;
 	bottom: 0;
-	width: 220px;
-	background: #ffffff;
-	border-right: 1px solid rgba(18, 22, 44, 0.08);
-	box-shadow: 4px 0 16px rgba(25, 33, 61, 0.08);
+	width: 240px;
+	background: var(--card-bg);
+	border-right: 1px solid var(--border-color);
+	box-shadow: var(--shadow-md);
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
@@ -98,27 +98,28 @@ const navItemIsActive = (item: NavItem) => {
 	align-items: center;
 	gap: 12px;
 	text-decoration: none;
-	color: var(--ion-color-medium-shade, #62636c);
+	color: var(--ion-text-secondary);
 	font-size: 0.95rem;
 	font-weight: 500;
 	padding: 12px 16px;
-	border-radius: 12px;
+	border-radius: var(--radius-md);
 	transition: color 0.2s ease, background-color 0.2s ease;
 }
 
 .nav-item:focus-visible {
-	outline: 2px solid var(--ion-color-success, #2dd36f);
+	outline: 2px solid var(--ion-color-primary);
 	outline-offset: 4px;
 }
 
 .nav-item:hover {
-	background: rgba(45, 211, 111, 0.08);
-	color: var(--ion-color-success, #2dd36f);
+	background: #f1f5f9;
+	color: #243064;
 }
 
 .nav-item.active {
-	color: var(--ion-color-success, #2dd36f);
-	background: rgba(45, 211, 111, 0.12);
+	color: #2563eb;
+	background: #eff6ff;
+	font-weight: 700;
 }
 
 .nav-icon {
@@ -138,7 +139,7 @@ const navItemIsActive = (item: NavItem) => {
 		top: 0;
 		padding: 16px;
 		justify-content: center;
-		box-shadow: 0 4px 16px rgba(25, 33, 61, 0.08);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.nav-bar {

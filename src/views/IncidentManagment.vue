@@ -1,11 +1,12 @@
 <template>
 	<ion-page>
+		<ion-header class="ion-no-border">
+			<ion-toolbar>
+				<ion-title>Gestion de Incidentes</ion-title>
+			</ion-toolbar>
+		</ion-header>
 		<ion-content fullscreen class="incident-content">
 			<div class="incident-page">
-				<section class="page-header">
-					<h1>Gestion de Incidentes</h1>
-				</section>
-
 				<section class="card filters-card">
 					<h2>Filtrar Incidentes</h2>
 					<form class="filters-form" @submit.prevent="applyFilters">
@@ -161,7 +162,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { IonContent, IonIcon, IonPage, IonSpinner, onIonViewWillEnter, onIonViewWillLeave } from '@ionic/vue';
+import { IonContent, IonIcon, IonPage, IonSpinner, IonHeader, IonToolbar, IonTitle, onIonViewWillEnter, onIonViewWillLeave } from '@ionic/vue';
 import { createOutline } from 'ionicons/icons';
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import axios from 'axios';
@@ -635,30 +636,7 @@ onBeforeRouteLeave((_to, _from, next) => {
 </script>
 
 <style scoped>
-.incident-content {
-	--background: #f8fafc;
-}
-
-.incident-page {
-	background: #f8fafc;
-	min-height: 100vh;
-	padding: 32px;
-}
-
-.page-header {
-	margin-bottom: 24px;
-}
-
-.page-header h1 {
-	font-size: 2rem;
-	font-weight: 700;
-	color: #16213d;
-	margin: 0;
-}
-
 .card {
-	background: #ffffff;
-	border-radius: 18px;
 	box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
 	padding: 24px;
 	margin-bottom: 28px;
@@ -780,6 +758,19 @@ th {
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 }
+thead {
+	background: #f1f5f9;
+}
+
+th {
+	text-align: left;
+	padding: 14px 16px;
+	font-weight: 600;
+	color: #475569;
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
 
 td {
 	padding: 16px;
@@ -801,8 +792,8 @@ tbody tr:hover {
 }
 
 .status-open {
-	background: rgba(248, 113, 113, 0.16);
-	color: #dc2626;
+	background: rgba(74, 222, 128, 0.16);
+	color: #15803d;
 }
 
 .status-review {
@@ -811,8 +802,8 @@ tbody tr:hover {
 }
 
 .status-closed {
-	background: rgba(74, 222, 128, 0.16);
-	color: #15803d;
+	background: rgba(248, 113, 113, 0.16);
+	color: #dc2626;
 }
 
 .actions {

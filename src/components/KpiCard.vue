@@ -28,10 +28,13 @@ withDefaults(
 
 <style scoped>
 .kpi-card {
-	--background: var(--ion-card-background, #ffffff);
+	--background: #ffffff;
+	--color: #0f172a;
+	color: #0f172a;
 	margin: 0;
 }
 
+/* ... existing accent styles ... */
 .kpi-card.accent-primary {
 	border-top: 3px solid #2563eb;
 }
@@ -54,6 +57,14 @@ withDefaults(
 
 .kpi-card p {
 	margin: 0;
-	color: var(--ion-color-step-600, #475569);
+	color: #475569;
+}
+
+ion-card-subtitle {
+	color: #64748b;
+}
+
+ion-card-title {
+	color: #0f172a;
 }
 </style>

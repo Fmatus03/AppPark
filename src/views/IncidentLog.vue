@@ -165,7 +165,7 @@
 				<ion-button
 					expand="block"
 					class="submit-button"
-					color="success"
+					color="primary"
 					size="large"
 					@click="submitIncident"
 				>
@@ -216,17 +216,16 @@ import { HTTP } from '@awesome-cordova-plugins/http';
 import { useSession } from '@/composables/useSession';
 import { isAndroidNativeApp, parseFetchResponse, throwFetchError } from '@/utils/httpHelpers';
 
-type Category = 'Seguridad' | 'Mantenimiento' | 'Servicios' | 'Otros';
+type Category = 'Infraestructura' | 'Seguridad' | 'Servicios publicos';
 
 const incidentTitle = ref('');
 const incidentDescription = ref('');
 const selectedCategory = ref<Category | null>(null);
-const categories: Category[] = ['Seguridad', 'Mantenimiento', 'Servicios', 'Otros'];
+const categories: Category[] = ['Infraestructura', 'Seguridad', 'Servicios publicos'];
 const categoryIds: Record<Category, number> = {
-	Seguridad: 1,
-	Mantenimiento: 2,
-	Servicios: 3,
-	Otros: 4,
+	Infraestructura: 1,
+	Seguridad: 2,
+	'Servicios publicos': 3,
 };
 const evidencePhotos = ref<Photo[]>([]);
 const isCapturing = ref(false);

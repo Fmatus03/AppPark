@@ -10,7 +10,7 @@
 				<div ref="mapRef" class="leaflet-map"></div>
 			</div>
 			<div slot="fixed" class="incident-button-wrapper">
-				<IonButton class="incident-button" shape="round" @click="goToIncidentLog">
+				<IonButton class="incident-button" shape="round" color="primary" @click="goToIncidentLog">
 					<IonIcon slot="start" :icon="add" />
 					Registrar Incidente
 				</IonButton>
@@ -147,11 +147,9 @@ onBeforeUnmount(async () => {
 }
 
 .incident-button {
-	--background: #24b34b;
-	--background-hover: #1f9a3f;
-	--box-shadow: 0 6px 16px rgba(36, 179, 75, 0.35);
 	font-weight: 600;
 	letter-spacing: 0.01em;
+	--box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
 }
 
 </style>
