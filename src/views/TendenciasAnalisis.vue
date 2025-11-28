@@ -2,7 +2,7 @@
 	<ion-page class="tendencias-analisis">
 		<ion-header translucent>
 			<ion-toolbar>
-				<ion-title>Analytics de Incidentes</ion-title>
+				<ion-title>Analiticas de Incidentes</ion-title>
 			</ion-toolbar>
 		</ion-header>
 		<ion-content fullscreen>
@@ -28,10 +28,163 @@
 				<main class="dashboard-content">
 					<header class="content-header">
 						<h1>{{ activeReport?.label }}</h1>
-						<p class="subtitle">Genera reportes objetivos sobre incidentes.</p>
+						<p class="subtitle">Reportes sobre incidentes.(Esto se hace en base a los ultimos datos. Significa que dependiendo del tipo de metrica, es por ejemplo año actual vs previo o ultimos 30 dias, etc)</p>
 					</header>
 
 					<div class="report-container">
+						<div v-if="activeReportId === 'overview'" class="report-section">
+							<div class="overview-header">
+								<ion-button @click="showOverviewSettings = !showOverviewSettings" fill="outline" size="small">
+									<ion-icon :icon="settingsOutline" slot="start" />
+									{{ showOverviewSettings ? 'Ocultar Personalización' : 'Personalizar Vista' }}
+								</ion-button>
+							</div>
+
+							<div v-if="showOverviewSettings" class="settings-panel">
+								<h3>Seleccionar Reportes Visibles</h3>
+								<div class="settings-grid">
+									<div v-for="report in reports.filter(r => r.id !== 'overview')" :key="report.id" class="setting-item">
+										<ion-checkbox v-model="overviewSettings[report.id]">{{ report.label }}</ion-checkbox>
+									</div>
+								</div>
+							</div>
+
+							<div class="overview-grid">
+								<!-- Tendencias -->
+								<div v-if="overviewSettings['tendencias-categorias'] && tendenciasCategorias.data" class="overview-card">
+									<h4>Tendencias por Categoría</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="tendenciasPieData" type="pie" :data="tendenciasPieData" :options="pieOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Evolucion -->
+								<div v-if="overviewSettings['evolucion-categorias'] && evolucionCategorias.data" class="overview-card wide">
+									<h4>Evolución de Categorías</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="evolucionLineData" type="line" :data="evolucionLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Analisis Horario -->
+								<div v-if="overviewSettings['analisis-horario'] && analisisHorario.data" class="overview-card">
+									<h4>Análisis por Horario</h4>
+									<div class="kpi-mini-grid">
+										<div class="kpi-mini">
+											<span class="label">Pico</span>
+											<span class="value">{{ analisisHorario.data.estadisticas.horaPico }}h</span>
+										</div>
+										<div class="kpi-mini">
+											<span class="label">Promedio</span>
+											<span class="value">{{ analisisHorario.data.estadisticas.promedioIncidentesPorHora.toFixed(1) }}</span>
+										</div>
+									</div>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="horarioBarData" type="bar" :data="horarioBarData" :options="barOptions" :height="200" />
+									</div>
+								</div>
+
+								<!-- Rutas Criticas -->
+								<div v-if="overviewSettings['rutas-criticas'] && rutasCriticas.data" class="overview-card wide">
+									<h4>Rutas Críticas</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="rutasCriticasStackedData" type="bar" :data="rutasCriticasStackedData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Comparacion Mensual -->
+								<div v-if="overviewSettings['comparacion-mensual'] && comparacionMensual.data" class="overview-card wide">
+									<h4>Comparación Mensual</h4>
+									<div class="kpi-row">
+										<span :class="comparacionMensual.data.comparacion.tendencia === 'ASCENDENTE' ? 'text-danger' : 'text-success'">
+											{{ comparacionMensual.data.comparacion.variacionTotal > 0 ? '+' : ''}}{{ comparacionMensual.data.comparacion.variacionTotal }} ({{ formatPercent(comparacionMensual.data.comparacion.variacionPorcentual) }})
+										</span>
+									</div>
+									<div class="dual-chart-row">
+										<div class="half-chart" v-if="comparacionMensualCategoriaData">
+											<small>{{ comparacionMensual.data.periodo1.mes }}</small>
+											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo1" :options="donutOptions" :height="200" />
+										</div>
+										<div class="half-chart" v-if="comparacionMensualCategoriaData">
+											<small>{{ comparacionMensual.data.periodo2.mes }}</small>
+											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo2" :options="donutOptions" :height="200" />
+										</div>
+									</div>
+								</div>
+
+								<!-- Comparacion Anual -->
+								<div v-if="overviewSettings['comparacion-anual'] && comparacionAnual.data" class="overview-card wide">
+									<h4>Comparación Anual</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Analisis Estacional -->
+								<div v-if="overviewSettings['analisis-estacional'] && analisisEstacional.data" class="overview-card">
+									<h4>Análisis Estacional</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="analisisEstacionalBarData" type="bar" :data="analisisEstacionalBarData" :options="dualAxisBarOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Patrones Horarios -->
+								<div v-if="overviewSettings['patrones-horarios'] && patronesHorarios.data" class="overview-card wide">
+									<h4>Patrones Horarios</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="patronesSegmentosChartData" type="bar" :data="patronesSegmentosChartData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Incidentes Recurrentes -->
+								<div v-if="overviewSettings['incidentes-recurrentes'] && incidentesRecurrentes.data" class="overview-card">
+									<h4>Incidentes Recurrentes (Top)</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="incidentesRecurrentesBarData" type="bar" :data="incidentesRecurrentesBarData" :options="horizontalBarOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Comparacion Zonas -->
+								<div v-if="overviewSettings['comparacion-zonas'] && comparacionZonas.data" class="overview-card wide">
+									<h4>Comparación por Zonas</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="comparacionZonasStackedData" type="bar" :data="comparacionZonasStackedData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Tiempo Resolucion -->
+								<div v-if="overviewSettings['tiempo-resolucion'] && tiempoResolucion.data" class="overview-card">
+									<h4>Tiempo de Resolución</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="tiempoResolucionBarData" type="bar" :data="tiempoResolucionBarData" :options="barOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Ranking Rutas -->
+								<div v-if="overviewSettings['ranking-rutas'] && rankingTendenciaRutas.data" class="overview-card wide">
+									<h4>Ranking de Tendencia</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Proporcion Estados -->
+								<div v-if="overviewSettings['proporcion-estados'] && proporcionEstados.data" class="overview-card">
+									<h4>Proporción de Estados</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="proporcionEstadosDonut" type="doughnut" :data="proporcionEstadosDonut" :options="donutOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Eficiencia Cierre -->
+								<div v-if="overviewSettings['eficiencia-cierre'] && eficienciaCierre.data" class="overview-card wide">
+									<h4>Eficiencia de Cierre</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="eficienciaCierreLineData" type="line" :data="eficienciaCierreLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+							</div>
+						</div>
 <div v-if="activeReportId === 'tendencias-categorias'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
@@ -761,8 +914,14 @@ import {
 	IonSpinner,
 	IonTitle,
 	IonToolbar,
+	IonCheckbox,
+	IonAccordion,
+	IonAccordionGroup,
+	IonGrid,
+	IonRow,
+	IonCol,
 } from '@ionic/vue';
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import {
 	refreshOutline,
 	pieChartOutline,
@@ -778,6 +937,7 @@ import {
 	hourglassOutline,
 	listOutline,
 	checkmarkDoneCircleOutline,
+	settingsOutline,
 } from 'ionicons/icons';
 import AnalyticsChart from '@/components/AnalyticsChart.vue';
 import KpiCard from '@/components/KpiCard.vue';
@@ -1350,6 +1510,7 @@ const eficienciaCategoriaBarData = computed<ChartData<'bar'> | null>(() => {
 
 // --- NAVIGATION ---
 const reports = [
+	{ id: 'overview', label: 'Vista General', icon: gridOutline },
 	{ id: 'tendencias-categorias', label: 'Tendencias por categoría', icon: pieChartOutline },
 	{ id: 'evolucion-categorias', label: 'Evolución de categorías', icon: trendingUpOutline },
 	{ id: 'analisis-horario', label: 'Análisis por horario', icon: timeOutline },
@@ -1368,6 +1529,76 @@ const reports = [
 
 const activeReportId = ref(reports[0].id);
 const activeReport = computed(() => reports.find((r) => r.id === activeReportId.value));
+
+// --- OVERVIEW STATE ---
+const showOverviewSettings = ref(false);
+const overviewSettings = reactive<Record<string, boolean>>({});
+
+const loadOverviewSettings = () => {
+	const saved = localStorage.getItem('analytics_overview_settings');
+	if (saved) {
+		try {
+			const parsed = JSON.parse(saved);
+			Object.assign(overviewSettings, parsed);
+		} catch (e) {
+			console.error('Error loading overview settings', e);
+		}
+	}
+	// Ensure all reports have a default value if not present
+	reports.filter(r => r.id !== 'overview').forEach(r => {
+		if (overviewSettings[r.id] === undefined) {
+			overviewSettings[r.id] = false; // Default to hidden
+		}
+	});
+};
+
+const saveOverviewSettings = () => {
+	localStorage.setItem('analytics_overview_settings', JSON.stringify(overviewSettings));
+};
+
+watch(overviewSettings, () => {
+	saveOverviewSettings();
+}, { deep: true });
+
+const loadOverviewData = async () => {
+	// Trigger data loading for all enabled sections if they haven't loaded yet
+	// We can check if data is null to avoid re-fetching unnecessarily, 
+	// or we might want to refresh. For now, let's load if missing.
+	
+	const promises = [];
+	
+	if (overviewSettings['tendencias-categorias'] && !tendenciasCategorias.data && !tendenciasCategorias.loading) promises.push(generateTendencias());
+	if (overviewSettings['evolucion-categorias'] && !evolucionCategorias.data && !evolucionCategorias.loading) promises.push(generateEvolucion());
+	if (overviewSettings['analisis-horario'] && !analisisHorario.data && !analisisHorario.loading) promises.push(generateAnalisisHorario());
+	if (overviewSettings['rutas-criticas'] && !rutasCriticas.data && !rutasCriticas.loading) promises.push(generateRutasCriticas());
+	if (overviewSettings['comparacion-mensual'] && !comparacionMensual.data && !comparacionMensual.loading) promises.push(generateComparacionMensual());
+	if (overviewSettings['comparacion-anual'] && !comparacionAnual.data && !comparacionAnual.loading) promises.push(generateComparacionAnual());
+	if (overviewSettings['analisis-estacional'] && !analisisEstacional.data && !analisisEstacional.loading) promises.push(generateAnalisisEstacional());
+	if (overviewSettings['patrones-horarios'] && !patronesHorarios.data && !patronesHorarios.loading) promises.push(generatePatronesHorarios());
+	if (overviewSettings['incidentes-recurrentes'] && !incidentesRecurrentes.data && !incidentesRecurrentes.loading) promises.push(generateIncidentesRecurrentes());
+	if (overviewSettings['comparacion-zonas'] && !comparacionZonas.data && !comparacionZonas.loading) promises.push(generateComparacionZonas());
+	if (overviewSettings['tiempo-resolucion'] && !tiempoResolucion.data && !tiempoResolucion.loading) promises.push(generateTiempoResolucion());
+	if (overviewSettings['ranking-rutas'] && !rankingTendenciaRutas.data && !rankingTendenciaRutas.loading) promises.push(generateRankingRutas());
+	if (overviewSettings['proporcion-estados'] && !proporcionEstados.data && !proporcionEstados.loading) promises.push(generateProporcionEstados());
+	if (overviewSettings['eficiencia-cierre'] && !eficienciaCierre.data && !eficienciaCierre.loading) promises.push(generateEficienciaCierre());
+
+	await Promise.all(promises);
+};
+
+// Load settings on mount
+onMounted(() => {
+	loadOverviewSettings();
+	if (activeReportId.value === 'overview') {
+		loadOverviewData();
+	}
+});
+
+// Watch for tab change to overview to load data
+watch(activeReportId, (newId) => {
+	if (newId === 'overview') {
+		loadOverviewData();
+	}
+});
 </script>
 
 <style scoped>
@@ -1399,7 +1630,7 @@ const activeReport = computed(() => reports.find((r) => r.id === activeReportId.
 	margin: 0;
 	font-size: 1.25rem;
 	font-weight: 700;
-	color: var(--ion-text-color);
+	color: #0f172a; /* Slate 900 */
 	letter-spacing: -0.025em;
 }
 
@@ -1457,13 +1688,13 @@ const activeReport = computed(() => reports.find((r) => r.id === activeReportId.
 	margin: 0 0 8px;
 	font-size: 1.8rem;
 	font-weight: 700;
-	color: var(--ion-text-color);
+	color: #0f172a; /* Slate 900 */
 	letter-spacing: -0.025em;
 }
 
 .subtitle {
 	margin: 0;
-	color: var(--ion-text-secondary);
+	color: #64748b; /* Slate 500 */
 	font-size: 1rem;
 }
 
@@ -1601,7 +1832,7 @@ const activeReport = computed(() => reports.find((r) => r.id === activeReportId.
 	margin: 0;
 	font-size: 0.95rem;
 	font-weight: 600;
-	color: var(--ion-text-color);
+	color: #0f172a; /* Slate 900 */
 	text-align: center;
 }
 
@@ -1644,5 +1875,140 @@ const activeReport = computed(() => reports.find((r) => r.id === activeReportId.
 	color: #0f172a !important;
 	--color: #0f172a !important;
 	--placeholder-color: #64748b !important;
+}
+
+.overview-header {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 16px;
+}
+
+.settings-panel {
+	background: #f8fafc;
+	padding: 16px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-color);
+	margin-bottom: 24px;
+}
+
+.settings-panel h3 {
+	margin: 0 0 16px;
+	font-size: 1rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+}
+
+.setting-item ion-checkbox {
+	--label-color: #0f172a; /* Slate 900 */
+	color: #0f172a;
+	font-size: 0.95rem;
+}
+
+.settings-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 12px;
+}
+
+.overview-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+	gap: 24px;
+}
+
+.overview-card {
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-md);
+	padding: 16px;
+	box-shadow: var(--shadow-sm);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	color: #0f172a; /* Slate 900 */
+}
+
+.overview-card.wide {
+	grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+	.overview-card.wide {
+		grid-column: span 1;
+	}
+}
+
+.overview-card h4 {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+	border-bottom: 1px solid var(--border-color);
+	padding-bottom: 8px;
+}
+
+.chart-wrapper {
+	flex: 1;
+	min-height: 200px;
+	position: relative;
+}
+
+.kpi-mini-grid {
+	display: flex;
+	gap: 16px;
+	margin-bottom: 8px;
+}
+
+.kpi-mini {
+	display: flex;
+	flex-direction: column;
+}
+
+.kpi-mini .label {
+	font-size: 0.75rem;
+	color: #64748b; /* Slate 500 */
+	text-transform: uppercase;
+	font-weight: 700;
+}
+
+.kpi-mini .value {
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: #0f172a; /* Slate 900 */
+}
+
+.dual-chart-row {
+	display: flex;
+	gap: 16px;
+}
+
+.half-chart {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #0f172a;
+}
+
+.half-chart small {
+	color: #64748b;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.text-success { color: var(--ion-color-success); }
+.text-danger { color: var(--ion-color-danger); }
+
+.segment-card h4 {
+	margin: 0 0 8px;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+}
+
+.segment-card p {
+	margin: 4px 0;
+	font-size: 0.85rem;
+	color: #64748b; /* Slate 500 */
 }
 </style>
