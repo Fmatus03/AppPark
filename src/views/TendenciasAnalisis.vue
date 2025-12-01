@@ -28,11 +28,12 @@
 				<main class="dashboard-content">
 					<header class="content-header">
 						<h1>{{ activeReport?.label }}</h1>
-						<p class="subtitle">Reportes sobre incidentes.(Esto se hace en base a los ultimos datos. Significa que dependiendo del tipo de metrica, es por ejemplo año actual vs previo o ultimos 30 dias, etc)</p>
+						<p class="subtitle">Reportes sobre incidentes</p>
 					</header>
 
 					<div class="report-container">
 						<div v-if="activeReportId === 'overview'" class="report-section">
+							<overview-filter-bar :filters="overviewState.filters" :active-reports="overviewSettings" @refresh="refreshOverview" />
 							<div class="overview-header">
 								<ion-button @click="showOverviewSettings = !showOverviewSettings" fill="outline" size="small">
 									<ion-icon :icon="settingsOutline" slot="start" />
@@ -51,7 +52,7 @@
 
 							<div class="overview-grid">
 								<!-- Tendencias -->
-								<div v-if="overviewSettings['tendencias-categorias'] && tendenciasCategorias.data" class="overview-card">
+								<div v-if="overviewSettings['tendencias-categorias'] && overviewState.reports.tendenciasCategorias.data" class="overview-card">
 									<h4>Tendencias por Categoría</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="tendenciasPieData" type="pie" :data="tendenciasPieData" :options="pieOptions" :height="250" />
@@ -59,7 +60,7 @@
 								</div>
 
 								<!-- Evolucion -->
-								<div v-if="overviewSettings['evolucion-categorias'] && evolucionCategorias.data" class="overview-card wide">
+								<div v-if="overviewSettings['evolucion-categorias'] && overviewState.reports.evolucionCategorias.data" class="overview-card wide">
 									<h4>Evolución de Categorías</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="evolucionLineData" type="line" :data="evolucionLineData" :options="lineOptions" :height="300" />
@@ -67,16 +68,16 @@
 								</div>
 
 								<!-- Analisis Horario -->
-								<div v-if="overviewSettings['analisis-horario'] && analisisHorario.data" class="overview-card">
+								<div v-if="overviewSettings['analisis-horario'] && overviewState.reports.analisisHorario.data" class="overview-card">
 									<h4>Análisis por Horario</h4>
 									<div class="kpi-mini-grid">
 										<div class="kpi-mini">
 											<span class="label">Pico</span>
-											<span class="value">{{ analisisHorario.data.estadisticas.horaPico }}h</span>
+											<span class="value">{{ overviewState.reports.analisisHorario.data.estadisticas.horaPico }}h</span>
 										</div>
 										<div class="kpi-mini">
 											<span class="label">Promedio</span>
-											<span class="value">{{ analisisHorario.data.estadisticas.promedioIncidentesPorHora.toFixed(1) }}</span>
+											<span class="value">{{ overviewState.reports.analisisHorario.data.estadisticas.promedioIncidentesPorHora.toFixed(1) }}</span>
 										</div>
 									</div>
 									<div class="chart-wrapper">
@@ -85,7 +86,7 @@
 								</div>
 
 								<!-- Rutas Criticas -->
-								<div v-if="overviewSettings['rutas-criticas'] && rutasCriticas.data" class="overview-card wide">
+								<div v-if="overviewSettings['rutas-criticas'] && overviewState.reports.rutasCriticas.data" class="overview-card wide">
 									<h4>Rutas Críticas</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="rutasCriticasStackedData" type="bar" :data="rutasCriticasStackedData" :options="stackedBarOptions" :height="300" />
@@ -93,27 +94,27 @@
 								</div>
 
 								<!-- Comparacion Mensual -->
-								<div v-if="overviewSettings['comparacion-mensual'] && comparacionMensual.data" class="overview-card wide">
+								<div v-if="overviewSettings['comparacion-mensual'] && overviewState.reports.comparacionMensual.data" class="overview-card wide">
 									<h4>Comparación Mensual</h4>
 									<div class="kpi-row">
-										<span :class="comparacionMensual.data.comparacion.tendencia === 'ASCENDENTE' ? 'text-danger' : 'text-success'">
-											{{ comparacionMensual.data.comparacion.variacionTotal > 0 ? '+' : ''}}{{ comparacionMensual.data.comparacion.variacionTotal }} ({{ formatPercent(comparacionMensual.data.comparacion.variacionPorcentual) }})
+										<span :class="overviewState.reports.comparacionMensual.data.comparacion.tendencia === 'ASCENDENTE' ? 'text-danger' : 'text-success'">
+											{{ overviewState.reports.comparacionMensual.data.comparacion.variacionTotal > 0 ? '+' : ''}}{{ overviewState.reports.comparacionMensual.data.comparacion.variacionTotal }} ({{ formatPercent(overviewState.reports.comparacionMensual.data.comparacion.variacionPorcentual) }})
 										</span>
 									</div>
 									<div class="dual-chart-row">
 										<div class="half-chart" v-if="comparacionMensualCategoriaData">
-											<small>{{ comparacionMensual.data.periodo1.mes }}</small>
+											<small>{{ overviewState.reports.comparacionMensual.data.periodo1.mes }}</small>
 											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo1" :options="donutOptions" :height="200" />
 										</div>
 										<div class="half-chart" v-if="comparacionMensualCategoriaData">
-											<small>{{ comparacionMensual.data.periodo2.mes }}</small>
+											<small>{{ overviewState.reports.comparacionMensual.data.periodo2.mes }}</small>
 											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo2" :options="donutOptions" :height="200" />
 										</div>
 									</div>
 								</div>
 
 								<!-- Comparacion Anual -->
-								<div v-if="overviewSettings['comparacion-anual'] && comparacionAnual.data" class="overview-card wide">
+								<div v-if="overviewSettings['comparacion-anual'] && overviewState.reports.comparacionAnual.data" class="overview-card wide">
 									<h4>Comparación Anual</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="300" />
@@ -121,7 +122,7 @@
 								</div>
 
 								<!-- Analisis Estacional -->
-								<div v-if="overviewSettings['analisis-estacional'] && analisisEstacional.data" class="overview-card">
+								<div v-if="overviewSettings['analisis-estacional'] && overviewState.reports.analisisEstacional.data" class="overview-card">
 									<h4>Análisis Estacional</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="analisisEstacionalBarData" type="bar" :data="analisisEstacionalBarData" :options="dualAxisBarOptions" :height="250" />
@@ -129,7 +130,7 @@
 								</div>
 
 								<!-- Patrones Horarios -->
-								<div v-if="overviewSettings['patrones-horarios'] && patronesHorarios.data" class="overview-card wide">
+								<div v-if="overviewSettings['patrones-horarios'] && overviewState.reports.patronesHorarios.data" class="overview-card wide">
 									<h4>Patrones Horarios</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="patronesSegmentosChartData" type="bar" :data="patronesSegmentosChartData" :options="stackedBarOptions" :height="300" />
@@ -137,7 +138,7 @@
 								</div>
 
 								<!-- Incidentes Recurrentes -->
-								<div v-if="overviewSettings['incidentes-recurrentes'] && incidentesRecurrentes.data" class="overview-card">
+								<div v-if="overviewSettings['incidentes-recurrentes'] && overviewState.reports.incidentesRecurrentes.data" class="overview-card">
 									<h4>Incidentes Recurrentes (Top)</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="incidentesRecurrentesBarData" type="bar" :data="incidentesRecurrentesBarData" :options="horizontalBarOptions" :height="250" />
@@ -145,7 +146,7 @@
 								</div>
 
 								<!-- Comparacion Zonas -->
-								<div v-if="overviewSettings['comparacion-zonas'] && comparacionZonas.data" class="overview-card wide">
+								<div v-if="overviewSettings['comparacion-zonas'] && overviewState.reports.comparacionZonas.data" class="overview-card wide">
 									<h4>Comparación por Zonas</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="comparacionZonasStackedData" type="bar" :data="comparacionZonasStackedData" :options="stackedBarOptions" :height="300" />
@@ -153,7 +154,7 @@
 								</div>
 
 								<!-- Tiempo Resolucion -->
-								<div v-if="overviewSettings['tiempo-resolucion'] && tiempoResolucion.data" class="overview-card">
+								<div v-if="overviewSettings['tiempo-resolucion'] && overviewState.reports.tiempoResolucion.data" class="overview-card">
 									<h4>Tiempo de Resolución</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="tiempoResolucionBarData" type="bar" :data="tiempoResolucionBarData" :options="barOptions" :height="250" />
@@ -161,7 +162,7 @@
 								</div>
 
 								<!-- Ranking Rutas -->
-								<div v-if="overviewSettings['ranking-rutas'] && rankingTendenciaRutas.data" class="overview-card wide">
+								<div v-if="overviewSettings['ranking-rutas'] && overviewState.reports.rankingTendenciaRutas.data" class="overview-card wide">
 									<h4>Ranking de Tendencia</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="300" />
@@ -169,7 +170,7 @@
 								</div>
 
 								<!-- Proporcion Estados -->
-								<div v-if="overviewSettings['proporcion-estados'] && proporcionEstados.data" class="overview-card">
+								<div v-if="overviewSettings['proporcion-estados'] && overviewState.reports.proporcionEstados.data" class="overview-card">
 									<h4>Proporción de Estados</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="proporcionEstadosDonut" type="doughnut" :data="proporcionEstadosDonut" :options="donutOptions" :height="250" />
@@ -177,7 +178,7 @@
 								</div>
 
 								<!-- Eficiencia Cierre -->
-								<div v-if="overviewSettings['eficiencia-cierre'] && eficienciaCierre.data" class="overview-card wide">
+								<div v-if="overviewSettings['eficiencia-cierre'] && overviewState.reports.eficienciaCierre.data" class="overview-card wide">
 									<h4>Eficiencia de Cierre</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="eficienciaCierreLineData" type="line" :data="eficienciaCierreLineData" :options="lineOptions" :height="300" />
@@ -941,267 +942,34 @@ import {
 } from 'ionicons/icons';
 import AnalyticsChart from '@/components/AnalyticsChart.vue';
 import KpiCard from '@/components/KpiCard.vue';
+import OverviewFilterBar from '@/components/OverviewFilterBar.vue';
 import { useAnalyticsApi } from '@/composables/useAnalyticsApi';
 import { useSession } from '@/composables/useSession';
+import { useOverviewState } from '@/composables/useOverviewState';
 import type { ChartData, ChartOptions } from 'chart.js';
+import type {
+	DateRangePayload,
+	TendenciasCategoriasResponse,
+	EvolucionCategoriasResponse,
+	AnalisisHorarioResponse,
+	RutasCriticasResponse,
+	ComparacionMensualResponse,
+	ComparacionAnualResponse,
+	AnalisisEstacionalResponse,
+	PatronesHorariosResponse,
+	IncidentesRecurrentesResponse,
+	ComparacionZonasResponse,
+	TiempoResolucionResponse,
+	RankingTendenciaRutasResponse,
+	ProporcionEstadosResponse,
+	EficienciaCierreResponse,
+	AgrupacionTemporal,
+	SegmentoClave,
+	DayOfWeek,
+	SegmentoDetalle,
+} from '@/types/analytics';
 
-// --- TYPES ---
-type DateRangePayload = { fechaInicio: string; fechaFin: string };
-type PeriodoConsulta = { fechaInicio: string; fechaFin: string };
-type CategoriaTrend = { id: number; nombre: string; cantidadIncidentes: number; porcentaje: number };
-type TendenciasCategoriasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	categorias: CategoriaTrend[];
-};
-type AgrupacionTemporal = 'DIARIA' | 'SEMANAL' | 'MENSUAL' | 'TRIMESTRAL' | 'ANUAL';
-type EvolucionCategoriasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	agrupacionTemporal: AgrupacionTemporal;
-	evolucionPorCategoria: Array<{
-		categoriaId: number;
-		categoriaNombre: string;
-		datosTemporales: Array<{ periodo: string; cantidad: number; porcentajeDelPeriodo: number }>;
-		estadisticas: { total: number; promedio: number; maximo: number; minimo: number; tendencia: string };
-	}>;
-	totalIncidentesPorPeriodo: Array<{ periodo: string; total: number }>;
-};
-type AnalisisHorarioResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	analisisPorHorario: Array<{ hora: number; cantidadIncidentes: number; porcentaje: number }>;
-	estadisticas: {
-		horaPico: number;
-		cantidadEnHoraPico: number;
-		horaMinima: number;
-		cantidadEnHoraMinima: number;
-		promedioIncidentesPorHora: number;
-	};
-};
-type RutaRef = { id: number; nombre: string };
-type CategoriaRef = { id: number; nombre: string };
-type CategoriaDistribucion = { nombre: string; cantidad: number; porcentaje: number };
-type DistribucionCategoriaSimple = { categoria: string; cantidad: number; porcentaje: number };
-type DistribucionEstado = { estado: string; cantidad: number; porcentaje: number };
-type RutasCriticasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	totalRutas: number;
-	topRutasCriticas: Array<{
-		ranking: number;
-		ruta: RutaRef;
-		cantidadIncidentes: number;
-		porcentaje: number;
-		categoriasPrincipales: CategoriaDistribucion[];
-	}>;
-	estadisticas: {
-		promedioIncidentesPorRuta: number;
-		rutaMasCritica: string;
-		rutaMenosCritica: string;
-	};
-};
-type PeriodoMensualResumen = {
-	mes: string;
-	totalIncidentes: number;
-	porCategoria: DistribucionCategoriaSimple[];
-	porEstado: DistribucionEstado[];
-};
-type ComparacionMensualResponse = {
-	periodo1: PeriodoMensualResumen;
-	periodo2: PeriodoMensualResumen;
-	comparacion: {
-		variacionTotal: number;
-		variacionPorcentual: number;
-		tendencia: string;
-	};
-};
-type PeriodoAnualResumen = {
-	anio: number;
-	totalIncidentes: number;
-	promedioMensual: number;
-	porCategoria: DistribucionCategoriaSimple[];
-	evolucionMensual: Array<{ mes: string; total: number }>;
-};
-type ComparacionAnualResponse = {
-	periodo1: PeriodoAnualResumen;
-	periodo2: PeriodoAnualResumen;
-	comparacion: {
-		variacionTotal: number;
-		variacionPorcentual: number;
-		tendencia: string;
-		categoriaConMayorCrecimiento?: string;
-		categoriaConMayorDecrecimiento?: string;
-	};
-};
-type AnalisisEstacionalResponse = {
-	anio: number;
-	totalIncidentes: number;
-	analisisPorEstacion: Array<{
-		estacion: string;
-		periodo: string;
-		cantidadIncidentes: number;
-		porcentaje: number;
-		promedioDiario: number;
-		categoriasPrincipales: CategoriaDistribucion[];
-	}>;
-	estadisticas: {
-		estacionConMasIncidentes: string;
-		estacionConMenosIncidentes: string;
-		diferenciaMaxima: number;
-	};
-};
-type SegmentoClave = 'madrugada' | 'manana' | 'tarde' | 'noche';
-type DayOfWeek = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-type SegmentoDetalle = {
-	rango: string;
-	cantidadTotal: number;
-	porcentaje: number;
-	promedioDiario: number;
-	categoriasPrincipales: CategoriaDistribucion[];
-} | null;
-type PatronesHorariosResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	patronesPorSegmento: Record<SegmentoClave, SegmentoDetalle>;
-	distribucionPorDiaSemana: Record<SegmentoClave, Record<DayOfWeek, number>>;
-};
-type IncidenteRecurrenteDetalle = {
-	ruta: RutaRef;
-	categoria: CategoriaRef;
-	cantidadIncidentes: number;
-	porcentajeDelTotal: number;
-	frecuenciaPromedioDias: number;
-	ultimoIncidente: string;
-};
-type IncidentesRecurrentesResponse = {
-	periodoConsulta: PeriodoConsulta;
-	umbralRecurrencia: number;
-	totalCombinacionesRecurrentes: number;
-	incidentesRecurrentes: IncidenteRecurrenteDetalle[];
-	estadisticas: {
-		combinacionConMasIncidentes: string;
-		rutaMasRecurrente: string;
-		categoriaMasRecurrente: string;
-		promedioFrecuenciaDias: number;
-	};
-};
-type ComparacionZonasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	comparacionPorZona: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		porcentaje: number;
-		distribucionCategorias: CategoriaDistribucion[];
-		categoriaDominante: string;
-	}>;
-	rankingPorCategoria: Record<string, Array<{ ruta: string; cantidad: number }>>;
-};
-type TiempoResolucionResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentesResueltos: number;
-	promedioGeneralDias: number;
-	promedioGeneralHoras: number;
-	tiempoPorCategoria: Array<{
-		categoria: CategoriaRef;
-		cantidadResueltos: number;
-		promedioDias: number;
-		promedioHoras: number;
-		minimoHoras: number;
-		maximoHoras: number;
-		medianaDias: number;
-	}>;
-};
-type RankingTendenciaRutasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	agrupacionTemporal: AgrupacionTemporal;
-	rankingRutas: Array<{
-		ranking: number;
-		ruta: RutaRef;
-		totalIncidentes: number;
-		porcentaje: number;
-		evolucionTemporal: Array<{ periodo: string; cantidad: number }>;
-		tendencia: string;
-		variacionPorcentual: number;
-		prediccionProximoMes: number;
-	}>;
-	analisisGlobal: {
-		rutaConTendenciaPositiva?: string;
-		rutaConTendenciaNegativa?: string;
-		rutaMasEstable?: string;
-	};
-};
-type ProporcionEstadosResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	proporcionGlobal: {
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-	};
-	proporcionPorCategoria: Array<{
-		categoria: CategoriaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-		eficiencia: number;
-	}>;
-	proporcionPorRuta: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-		eficiencia: number;
-	}>;
-	metaEficiencia: {
-		metaPorcentajeResueltos: number;
-		cumplimientoGlobal: boolean;
-		categoriasQueCumplen: string[];
-		rutasQueCumplen: string[];
-		brechaPromedio: number;
-	};
-};
-type EficienciaCierreResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	totalResueltos: number;
-	tasaCierreGlobal: number;
-	eficienciaPorCategoria: Array<{
-		categoria: CategoriaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		pendientes: number;
-		enProceso: number;
-		tasaCierre: number;
-		tiempoPromedioResolucionDias: number;
-	}>;
-	eficienciaPorRuta: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		pendientes: number;
-		enProceso: number;
-		tasaCierre: number;
-		tiempoPromedioResolucionDias: number;
-	}>;
-	evolucionMensual: Array<{
-		mes: string;
-		totalIncidentes: number;
-		resueltos: number;
-		tasaCierre: number;
-	}>;
-};
+// --- TYPES IMPORTED FROM @/types/analytics ---
 
 // --- STATE & API ---
 const session = useSession();
@@ -1290,15 +1058,16 @@ const buildDonutDataset = (entries: Array<{ label: string; value: number }>): Ch
 });
 
 const tendenciasPieData = computed<ChartData<'pie'> | null>(() => {
-	if (!tendenciasCategorias.data) return null;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.tendenciasCategorias.data : tendenciasCategorias.data;
+	if (!data) return null;
 	return {
-		labels: tendenciasCategorias.data.categorias.map((cat) => cat.nombre),
-		datasets: [{ data: tendenciasCategorias.data.categorias.map((cat) => cat.porcentaje), backgroundColor: tendenciasCategorias.data.categorias.map((_, idx) => colorPalette[idx % colorPalette.length]) }],
+		labels: data.categorias.map((cat) => cat.nombre),
+		datasets: [{ data: data.categorias.map((cat) => cat.porcentaje), backgroundColor: data.categorias.map((_, idx) => colorPalette[idx % colorPalette.length]) }],
 	};
 });
 
 const evolucionLineData = computed<ChartData<'line'> | null>(() => {
-	const data = evolucionCategorias.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.evolucionCategorias.data : evolucionCategorias.data;
 	if (!data) return null;
 	const labels = data.totalIncidentesPorPeriodo?.map((per) => per.periodo) ?? [];
 	return {
@@ -1314,15 +1083,16 @@ const evolucionLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const horarioBarData = computed<ChartData<'bar'> | null>(() => {
-	if (!analisisHorario.data) return null;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.analisisHorario.data : analisisHorario.data;
+	if (!data) return null;
 	return {
-		labels: analisisHorario.data.analisisPorHorario.map((item) => `${item.hora} h`),
-		datasets: [{ label: 'Incidentes', backgroundColor: '#3b82f6', data: analisisHorario.data.analisisPorHorario.map((item) => item.cantidadIncidentes) }],
+		labels: data.analisisPorHorario.map((item) => `${item.hora} h`),
+		datasets: [{ label: 'Incidentes', backgroundColor: '#3b82f6', data: data.analisisPorHorario.map((item) => item.cantidadIncidentes) }],
 	};
 });
 
 const rutasCriticasStackedData = computed<ChartData<'bar'> | null>(() => {
-	const data = rutasCriticas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.rutasCriticas.data : rutasCriticas.data;
 	if (!data) return null;
 	const labels = data.topRutasCriticas.map((ruta) => ruta.ruta.nombre);
 	const categoriaSet = new Set<string>();
@@ -1340,7 +1110,7 @@ const rutasCriticasStackedData = computed<ChartData<'bar'> | null>(() => {
 });
 
 const comparacionMensualCategoriaData = computed(() => {
-	const data = comparacionMensual.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionMensual.data : comparacionMensual.data;
 	if (!data) return null;
 	return {
 		periodo1: buildDonutDataset(data.periodo1.porCategoria.map((cat) => ({ label: cat.categoria, value: cat.porcentaje }))),
@@ -1349,7 +1119,7 @@ const comparacionMensualCategoriaData = computed(() => {
 });
 
 const comparacionMensualEstadoData = computed(() => {
-	const data = comparacionMensual.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionMensual.data : comparacionMensual.data;
 	if (!data) return null;
 	return {
 		periodo1: buildDonutDataset(data.periodo1.porEstado.map((estado) => ({ label: estado.estado, value: estado.porcentaje }))),
@@ -1358,7 +1128,7 @@ const comparacionMensualEstadoData = computed(() => {
 });
 
 const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
-	const data = comparacionAnual.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionAnual.data : comparacionAnual.data;
 	if (!data) return null;
 	const labelsSet = new Set([...data.periodo1.evolucionMensual.map((item) => item.mes), ...data.periodo2.evolucionMensual.map((item) => item.mes)]);
 	const labels = Array.from(labelsSet).sort();
@@ -1373,7 +1143,7 @@ const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const analisisEstacionalBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = analisisEstacional.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.analisisEstacional.data : analisisEstacional.data;
 	if (!data) return null;
 	return {
 		labels: data.analisisPorEstacion.map((item) => item.estacion),
@@ -1390,7 +1160,7 @@ const dayOrder: DayOfWeek[] = ['lunes', 'martes', 'miercoles', 'jueves', 'vierne
 const dayLabels: Record<DayOfWeek, string> = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo' };
 
 const patronesSegmentosChartData = computed<ChartData<'bar'> | null>(() => {
-	const data = patronesHorarios.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.patronesHorarios.data : patronesHorarios.data;
 	if (!data) return null;
 	const labels = dayOrder.map((day) => dayLabels[day]);
 	const datasets = segmentOrder
@@ -1406,13 +1176,13 @@ const patronesSegmentosChartData = computed<ChartData<'bar'> | null>(() => {
 
 type SegmentCard = { key: SegmentoClave; label: string; detalle: Exclude<SegmentoDetalle, null> };
 const patronesSegmentCards = computed<SegmentCard[]>(() => {
-	const data = patronesHorarios.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.patronesHorarios.data : patronesHorarios.data;
 	if (!data) return [];
 	return segmentOrder.map((segment) => ({ key: segment, label: segmentLabels[segment], detalle: data.patronesPorSegmento[segment] })).filter((segmento): segmento is SegmentCard => Boolean(segmento.detalle));
 });
 
 const incidentesRecurrentesBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = incidentesRecurrentes.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.incidentesRecurrentes.data : incidentesRecurrentes.data;
 	if (!data || !data.incidentesRecurrentes.length) return null;
 	const top = data.incidentesRecurrentes.slice(0, 6);
 	return {
@@ -1422,7 +1192,7 @@ const incidentesRecurrentesBarData = computed<ChartData<'bar'> | null>(() => {
 });
 
 const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
-	const data = comparacionZonas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionZonas.data : comparacionZonas.data;
 	if (!data) return null;
 	const labels = data.comparacionPorZona.map((zona) => zona.ruta.nombre);
 	const categoriaSet = new Set<string>();
@@ -1440,7 +1210,7 @@ const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
 });
 
 const tiempoResolucionBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = tiempoResolucion.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.tiempoResolucion.data : tiempoResolucion.data;
 	if (!data) return null;
 	return {
 		labels: data.tiempoPorCategoria.map((item) => item.categoria.nombre),
@@ -1449,7 +1219,7 @@ const tiempoResolucionBarData = computed<ChartData<'bar'> | null>(() => {
 });
 
 const rankingRutasLineData = computed<ChartData<'line'> | null>(() => {
-	const data = rankingTendenciaRutas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.rankingTendenciaRutas.data : rankingTendenciaRutas.data;
 	if (!data) return null;
 	const labelsSet = new Set<string>();
 	data.rankingRutas.forEach((ruta) => ruta.evolucionTemporal.forEach((punto) => labelsSet.add(punto.periodo)));
@@ -1467,7 +1237,7 @@ const rankingRutasLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const proporcionEstadosDonut = computed<ChartData<'doughnut'> | null>(() => {
-	const data = proporcionEstados.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.proporcionEstados.data : proporcionEstados.data;
 	if (!data) return null;
 	return buildDonutDataset([
 		{ label: 'Resueltos', value: data.proporcionGlobal.porcentajeResueltos },
@@ -1477,7 +1247,7 @@ const proporcionEstadosDonut = computed<ChartData<'doughnut'> | null>(() => {
 });
 
 const proporcionEstadosCategoriaStacked = computed<ChartData<'bar'> | null>(() => {
-	const data = proporcionEstados.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.proporcionEstados.data : proporcionEstados.data;
 	if (!data) return null;
 	const labels = data.proporcionPorCategoria.map((item) => item.categoria.nombre);
 	return {
@@ -1491,7 +1261,7 @@ const proporcionEstadosCategoriaStacked = computed<ChartData<'bar'> | null>(() =
 });
 
 const eficienciaCierreLineData = computed<ChartData<'line'> | null>(() => {
-	const data = eficienciaCierre.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.eficienciaCierre.data : eficienciaCierre.data;
 	if (!data) return null;
 	return {
 		labels: data.evolucionMensual.map((item) => item.mes),
@@ -1500,7 +1270,7 @@ const eficienciaCierreLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const eficienciaCategoriaBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = eficienciaCierre.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.eficienciaCierre.data : eficienciaCierre.data;
 	if (!data) return null;
 	return {
 		labels: data.eficienciaPorCategoria.map((item) => item.categoria.nombre),
@@ -1531,6 +1301,7 @@ const activeReportId = ref(reports[0].id);
 const activeReport = computed(() => reports.find((r) => r.id === activeReportId.value));
 
 // --- OVERVIEW STATE ---
+const overviewState = useOverviewState();
 const showOverviewSettings = ref(false);
 const overviewSettings = reactive<Record<string, boolean>>({});
 
@@ -1561,28 +1332,11 @@ watch(overviewSettings, () => {
 }, { deep: true });
 
 const loadOverviewData = async () => {
-	// Trigger data loading for all enabled sections if they haven't loaded yet
-	// We can check if data is null to avoid re-fetching unnecessarily, 
-	// or we might want to refresh. For now, let's load if missing.
-	
-	const promises = [];
-	
-	if (overviewSettings['tendencias-categorias'] && !tendenciasCategorias.data && !tendenciasCategorias.loading) promises.push(generateTendencias());
-	if (overviewSettings['evolucion-categorias'] && !evolucionCategorias.data && !evolucionCategorias.loading) promises.push(generateEvolucion());
-	if (overviewSettings['analisis-horario'] && !analisisHorario.data && !analisisHorario.loading) promises.push(generateAnalisisHorario());
-	if (overviewSettings['rutas-criticas'] && !rutasCriticas.data && !rutasCriticas.loading) promises.push(generateRutasCriticas());
-	if (overviewSettings['comparacion-mensual'] && !comparacionMensual.data && !comparacionMensual.loading) promises.push(generateComparacionMensual());
-	if (overviewSettings['comparacion-anual'] && !comparacionAnual.data && !comparacionAnual.loading) promises.push(generateComparacionAnual());
-	if (overviewSettings['analisis-estacional'] && !analisisEstacional.data && !analisisEstacional.loading) promises.push(generateAnalisisEstacional());
-	if (overviewSettings['patrones-horarios'] && !patronesHorarios.data && !patronesHorarios.loading) promises.push(generatePatronesHorarios());
-	if (overviewSettings['incidentes-recurrentes'] && !incidentesRecurrentes.data && !incidentesRecurrentes.loading) promises.push(generateIncidentesRecurrentes());
-	if (overviewSettings['comparacion-zonas'] && !comparacionZonas.data && !comparacionZonas.loading) promises.push(generateComparacionZonas());
-	if (overviewSettings['tiempo-resolucion'] && !tiempoResolucion.data && !tiempoResolucion.loading) promises.push(generateTiempoResolucion());
-	if (overviewSettings['ranking-rutas'] && !rankingTendenciaRutas.data && !rankingTendenciaRutas.loading) promises.push(generateRankingRutas());
-	if (overviewSettings['proporcion-estados'] && !proporcionEstados.data && !proporcionEstados.loading) promises.push(generateProporcionEstados());
-	if (overviewSettings['eficiencia-cierre'] && !eficienciaCierre.data && !eficienciaCierre.loading) promises.push(generateEficienciaCierre());
+	await overviewState.fetchOverviewData(overviewSettings);
+};
 
-	await Promise.all(promises);
+const refreshOverview = () => {
+	loadOverviewData();
 };
 
 // Load settings on mount
