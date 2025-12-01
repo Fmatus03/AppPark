@@ -33,7 +33,7 @@ ion-app.has-mobile-navbar ion-content {
 
 ion-app.has-sidebar {
   --sidebar-width: 220px;
-  background: #f8fafc;
+  background: var(--page-bg);
 }
 
 ion-app.has-sidebar ion-router-outlet {

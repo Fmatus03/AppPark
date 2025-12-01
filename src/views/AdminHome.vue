@@ -1,22 +1,23 @@
 <template>
 	<ion-page class="admin-home-page">
+		<ion-header class="ion-no-border">
+			<ion-toolbar>
+				<ion-title>Mapa de incidentes</ion-title>
+			</ion-toolbar>
+		</ion-header>
 		<ion-content :fullscreen="true">
 			<div class="mapa-incidentes">
-				<header class="mapa-incidentes__header">
-					<div>
-						<h1>Mapa de incidentes</h1>
-						<p>
-							Últimos 7 días
-							<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
-						</p>
-					</div>
-					<div class="mapa-incidentes__actions">
-						<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
-							{{ loading ? 'Actualizando…' : 'Recargar' }}
-						</button>
-					</div>
-				</header>
-
+				<div class="date-range-info">
+					<p>
+						Últimos 7 días
+						<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
+					</p>
+				</div>
+				<div class="mapa-incidentes__actions">
+					<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
+						{{ loading ? 'Actualizando…' : 'Recargar' }}
+					</button>
+				</div>
 				<section class="mapa-incidentes__status" v-if="!resolvedToken">
 					<p>Inicia sesión para visualizar los incidentes.</p>
 				</section>
@@ -407,6 +408,8 @@ export default defineComponent({
 <style scoped>
 .admin-home-page ion-content {
 	--background: #f8fafc;
+	--color: #0f172a;
+	color: #0f172a;
 }
 
 .mapa-incidentes {
@@ -433,7 +436,11 @@ export default defineComponent({
 .mapa-incidentes__header p {
 	margin: 0;
 	color: #475569;
-	font-size: 0.95rem;
+}
+
+.mapa-incidentes__actions {
+	display: flex;
+	justify-content: flex-end;
 }
 
 .mapa-incidentes__actions button {
@@ -444,11 +451,16 @@ export default defineComponent({
 	color: #fff;
 	font-weight: 600;
 	cursor: pointer;
+	transition: background-color 0.2s, opacity 0.2s;
 }
 
 .mapa-incidentes__actions button:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
+}
+
+.mapa-incidentes__actions button:not(:disabled):hover {
+	background: #1d4ed8;
 }
 
 .mapa-incidentes__status {

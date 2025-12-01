@@ -220,6 +220,8 @@ const redirectToLogin = () => {
 	/* Force a full white canvas for the profile screen */
 	--background: #ffffff;
 	background: #ffffff;
+	--color: #0f172a;
+	color: #0f172a;
 	padding: 20px 16px 32px;
 	display: flex;
 	flex-direction: column;
@@ -230,6 +232,10 @@ const redirectToLogin = () => {
 .contact-card {
 	border-radius: 18px;
 	box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.35);
+	max-width: 600px;
+	margin-left: auto;
+	margin-right: auto;
+	width: 100%;
 }
 
 .profile-header {

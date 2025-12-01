@@ -2,28 +2,191 @@
 	<ion-page class="tendencias-analisis">
 		<ion-header translucent>
 			<ion-toolbar>
-				<ion-title>Analytics de Incidentes</ion-title>
+				<ion-title>Analiticas de Incidentes</ion-title>
 			</ion-toolbar>
 		</ion-header>
 		<ion-content fullscreen>
-			<section class="intro">
-				<h1>Panel del Analista</h1>
-				<p>
-					Genera reportes objetivos sobre incidentes. Ajusta los filtros de cada módulo y presiona “Generar reporte” para
-					consultar los datos en tiempo real.
-				</p>
-			</section>
+			<div class="dashboard-container">
+				<aside class="dashboard-sidebar">
+					<div class="sidebar-header">
+						<h2>Reportes</h2>
+					</div>
+					<nav class="sidebar-nav">
+						<button
+							v-for="report in reports"
+							:key="report.id"
+							class="nav-button"
+							:class="{ active: activeReportId === report.id }"
+							@click="activeReportId = report.id"
+						>
+							<ion-icon :icon="report.icon" slot="start" />
+							<span>{{ report.label }}</span>
+						</button>
+					</nav>
+				</aside>
 
-			<ion-accordion-group expand="inset" class="report-accordion-group">
-				<!-- 1. Tendencias por Categoría -->
-				<ion-accordion value="tendencias-categorias">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Tendencias por categoría</h2>
-							<p>Participación porcentual por categoría</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+				<main class="dashboard-content">
+					<header class="content-header">
+						<h1>{{ activeReport?.label }}</h1>
+						<p class="subtitle">Reportes sobre incidentes</p>
+					</header>
+
+					<div class="report-container">
+						<div v-if="activeReportId === 'overview'" class="report-section">
+							<overview-filter-bar :filters="overviewState.filters" :active-reports="overviewSettings" @refresh="refreshOverview" />
+							<div class="overview-header">
+								<ion-button @click="showOverviewSettings = !showOverviewSettings" fill="outline" size="small">
+									<ion-icon :icon="settingsOutline" slot="start" />
+									{{ showOverviewSettings ? 'Ocultar Personalización' : 'Personalizar Vista' }}
+								</ion-button>
+							</div>
+
+							<div v-if="showOverviewSettings" class="settings-panel">
+								<h3>Seleccionar Reportes Visibles</h3>
+								<div class="settings-grid">
+									<div v-for="report in reports.filter(r => r.id !== 'overview')" :key="report.id" class="setting-item">
+										<ion-checkbox v-model="overviewSettings[report.id]">{{ report.label }}</ion-checkbox>
+									</div>
+								</div>
+							</div>
+
+							<div class="overview-grid">
+								<!-- Tendencias -->
+								<div v-if="overviewSettings['tendencias-categorias'] && overviewState.reports.tendenciasCategorias.data" class="overview-card">
+									<h4>Tendencias por Categoría</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="tendenciasPieData" type="pie" :data="tendenciasPieData" :options="pieOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Evolucion -->
+								<div v-if="overviewSettings['evolucion-categorias'] && overviewState.reports.evolucionCategorias.data" class="overview-card wide">
+									<h4>Evolución de Categorías</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="evolucionLineData" type="line" :data="evolucionLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Analisis Horario -->
+								<div v-if="overviewSettings['analisis-horario'] && overviewState.reports.analisisHorario.data" class="overview-card">
+									<h4>Análisis por Horario</h4>
+									<div class="kpi-mini-grid">
+										<div class="kpi-mini">
+											<span class="label">Pico</span>
+											<span class="value">{{ overviewState.reports.analisisHorario.data.estadisticas.horaPico }}h</span>
+										</div>
+										<div class="kpi-mini">
+											<span class="label">Promedio</span>
+											<span class="value">{{ overviewState.reports.analisisHorario.data.estadisticas.promedioIncidentesPorHora.toFixed(1) }}</span>
+										</div>
+									</div>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="horarioBarData" type="bar" :data="horarioBarData" :options="barOptions" :height="200" />
+									</div>
+								</div>
+
+								<!-- Rutas Criticas -->
+								<div v-if="overviewSettings['rutas-criticas'] && overviewState.reports.rutasCriticas.data" class="overview-card wide">
+									<h4>Rutas Críticas</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="rutasCriticasStackedData" type="bar" :data="rutasCriticasStackedData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Comparacion Mensual -->
+								<div v-if="overviewSettings['comparacion-mensual'] && overviewState.reports.comparacionMensual.data" class="overview-card wide">
+									<h4>Comparación Mensual</h4>
+									<div class="kpi-row">
+										<span :class="overviewState.reports.comparacionMensual.data.comparacion.tendencia === 'ASCENDENTE' ? 'text-danger' : 'text-success'">
+											{{ overviewState.reports.comparacionMensual.data.comparacion.variacionTotal > 0 ? '+' : ''}}{{ overviewState.reports.comparacionMensual.data.comparacion.variacionTotal }} ({{ formatPercent(overviewState.reports.comparacionMensual.data.comparacion.variacionPorcentual) }})
+										</span>
+									</div>
+									<div class="dual-chart-row">
+										<div class="half-chart" v-if="comparacionMensualCategoriaData">
+											<small>{{ overviewState.reports.comparacionMensual.data.periodo1.mes }}</small>
+											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo1" :options="donutOptions" :height="200" />
+										</div>
+										<div class="half-chart" v-if="comparacionMensualCategoriaData">
+											<small>{{ overviewState.reports.comparacionMensual.data.periodo2.mes }}</small>
+											<analytics-chart type="doughnut" :data="comparacionMensualCategoriaData.periodo2" :options="donutOptions" :height="200" />
+										</div>
+									</div>
+								</div>
+
+								<!-- Comparacion Anual -->
+								<div v-if="overviewSettings['comparacion-anual'] && overviewState.reports.comparacionAnual.data" class="overview-card wide">
+									<h4>Comparación Anual</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Analisis Estacional -->
+								<div v-if="overviewSettings['analisis-estacional'] && overviewState.reports.analisisEstacional.data" class="overview-card">
+									<h4>Análisis Estacional</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="analisisEstacionalBarData" type="bar" :data="analisisEstacionalBarData" :options="dualAxisBarOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Patrones Horarios -->
+								<div v-if="overviewSettings['patrones-horarios'] && overviewState.reports.patronesHorarios.data" class="overview-card wide">
+									<h4>Patrones Horarios</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="patronesSegmentosChartData" type="bar" :data="patronesSegmentosChartData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Incidentes Recurrentes -->
+								<div v-if="overviewSettings['incidentes-recurrentes'] && overviewState.reports.incidentesRecurrentes.data" class="overview-card">
+									<h4>Incidentes Recurrentes (Top)</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="incidentesRecurrentesBarData" type="bar" :data="incidentesRecurrentesBarData" :options="horizontalBarOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Comparacion Zonas -->
+								<div v-if="overviewSettings['comparacion-zonas'] && overviewState.reports.comparacionZonas.data" class="overview-card wide">
+									<h4>Comparación por Zonas</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="comparacionZonasStackedData" type="bar" :data="comparacionZonasStackedData" :options="stackedBarOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Tiempo Resolucion -->
+								<div v-if="overviewSettings['tiempo-resolucion'] && overviewState.reports.tiempoResolucion.data" class="overview-card">
+									<h4>Tiempo de Resolución</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="tiempoResolucionBarData" type="bar" :data="tiempoResolucionBarData" :options="barOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Ranking Rutas -->
+								<div v-if="overviewSettings['ranking-rutas'] && overviewState.reports.rankingTendenciaRutas.data" class="overview-card wide">
+									<h4>Ranking de Tendencia</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+
+								<!-- Proporcion Estados -->
+								<div v-if="overviewSettings['proporcion-estados'] && overviewState.reports.proporcionEstados.data" class="overview-card">
+									<h4>Proporción de Estados</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="proporcionEstadosDonut" type="doughnut" :data="proporcionEstadosDonut" :options="donutOptions" :height="250" />
+									</div>
+								</div>
+
+								<!-- Eficiencia Cierre -->
+								<div v-if="overviewSettings['eficiencia-cierre'] && overviewState.reports.eficienciaCierre.data" class="overview-card wide">
+									<h4>Eficiencia de Cierre</h4>
+									<div class="chart-wrapper">
+										<analytics-chart v-if="eficienciaCierreLineData" type="line" :data="eficienciaCierreLineData" :options="lineOptions" :height="300" />
+									</div>
+								</div>
+							</div>
+						</div>
+<div v-if="activeReportId === 'tendencias-categorias'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -68,17 +231,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 2. Evolución de Categorías -->
-				<ion-accordion value="evolucion-categorias">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Evolución de categorías</h2>
-							<p>Comportamiento temporal por categoría</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'evolucion-categorias'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -137,17 +290,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 3. Análisis Horario -->
-				<ion-accordion value="analisis-horario">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Análisis por horario</h2>
-							<p>Frecuencia por cada hora del día</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'analisis-horario'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -175,17 +318,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 4. Rutas Críticas -->
-				<ion-accordion value="rutas-criticas">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Rutas críticas</h2>
-							<p>Ranking de rutas con mayor número de incidentes</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'rutas-criticas'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -247,17 +380,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 5. Comparación mensual -->
-				<ion-accordion value="comparacion-mensual">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Comparación mensual</h2>
-							<p>Contrasta dos meses para medir variaciones</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'comparacion-mensual'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Mes 1</span>
@@ -304,17 +427,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 6. Comparación anual -->
-				<ion-accordion value="comparacion-anual">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Comparación anual</h2>
-							<p>Evalúa la evolución interanual por categoría</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'comparacion-anual'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Año base</span>
@@ -374,17 +487,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 7. Análisis estacional -->
-				<ion-accordion value="analisis-estacional">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Análisis estacional</h2>
-							<p>Comportamiento por estaciones del año</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'analisis-estacional'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Año</span>
@@ -438,17 +541,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 8. Patrones horarios -->
-				<ion-accordion value="patrones-horarios">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Patrones por segmento horario</h2>
-							<p>Distribución por franjas y días</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'patrones-horarios'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -485,17 +578,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 9. Incidentes recurrentes -->
-				<ion-accordion value="incidentes-recurrentes">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Incidentes recurrentes</h2>
-							<p>Combinaciones ruta-categoría con recurrencia</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'incidentes-recurrentes'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -546,17 +629,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 10. Comparación por zonas -->
-				<ion-accordion value="comparacion-zonas">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Comparación por zonas</h2>
-							<p>Distribución de incidentes por ruta</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'comparacion-zonas'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -585,7 +658,6 @@
 										:options="stackedBarOptions"
 										:height="320"
 									/>
-
 								</div>
 								<div class="table-card">
 									<table class="data-table">
@@ -610,17 +682,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 11. Tiempo de resolución -->
-				<ion-accordion value="tiempo-resolucion">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Tiempo de resolución</h2>
-							<p>Promedios por categoría</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'tiempo-resolucion'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -673,17 +735,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 12. Ranking de tendencia por ruta -->
-				<ion-accordion value="ranking-rutas">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Ranking de tendencia por ruta</h2>
-							<p>Evolución temporal de las rutas principales</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'ranking-rutas'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -751,17 +803,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 13. Proporción de estados -->
-				<ion-accordion value="proporcion-estados">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Proporción de estados</h2>
-							<p>Distribución resueltos / pendientes / en proceso</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'proporcion-estados'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -797,17 +839,7 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-
-				<!-- 14. Eficiencia de cierre -->
-				<ion-accordion value="eficiencia-cierre">
-					<ion-item slot="header">
-						<ion-label>
-							<h2>Eficiencia de cierre</h2>
-							<p>Tasa de cierre por categoría y ruta</p>
-						</ion-label>
-					</ion-item>
-					<div slot="content" class="section-content">
+<div v-if="activeReportId === 'eficiencia-cierre'" class="report-section">
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
@@ -859,16 +891,15 @@
 							</div>
 						</div>
 					</div>
-				</ion-accordion>
-			</ion-accordion-group>
+					</div>
+				</main>
+			</div>
 		</ion-content>
 	</ion-page>
 </template>
 
 <script setup lang="ts">
 import {
-	IonAccordion,
-	IonAccordionGroup,
 	IonButton,
 	IonContent,
 	IonDatetime,
@@ -884,378 +915,86 @@ import {
 	IonSpinner,
 	IonTitle,
 	IonToolbar,
+	IonCheckbox,
+	IonAccordion,
+	IonAccordionGroup,
+	IonGrid,
+	IonRow,
+	IonCol,
 } from '@ionic/vue';
-import { computed, reactive } from 'vue';
-import { refreshOutline } from 'ionicons/icons';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
+import {
+	refreshOutline,
+	pieChartOutline,
+	trendingUpOutline,
+	timeOutline,
+	alertCircleOutline,
+	calendarOutline,
+	calendarNumberOutline,
+	leafOutline,
+	gridOutline,
+	repeatOutline,
+	mapOutline,
+	hourglassOutline,
+	listOutline,
+	checkmarkDoneCircleOutline,
+	settingsOutline,
+} from 'ionicons/icons';
 import AnalyticsChart from '@/components/AnalyticsChart.vue';
 import KpiCard from '@/components/KpiCard.vue';
+import OverviewFilterBar from '@/components/OverviewFilterBar.vue';
 import { useAnalyticsApi } from '@/composables/useAnalyticsApi';
 import { useSession } from '@/composables/useSession';
+import { useOverviewState } from '@/composables/useOverviewState';
 import type { ChartData, ChartOptions } from 'chart.js';
+import type {
+	DateRangePayload,
+	TendenciasCategoriasResponse,
+	EvolucionCategoriasResponse,
+	AnalisisHorarioResponse,
+	RutasCriticasResponse,
+	ComparacionMensualResponse,
+	ComparacionAnualResponse,
+	AnalisisEstacionalResponse,
+	PatronesHorariosResponse,
+	IncidentesRecurrentesResponse,
+	ComparacionZonasResponse,
+	TiempoResolucionResponse,
+	RankingTendenciaRutasResponse,
+	ProporcionEstadosResponse,
+	EficienciaCierreResponse,
+	AgrupacionTemporal,
+	SegmentoClave,
+	DayOfWeek,
+	SegmentoDetalle,
+} from '@/types/analytics';
 
-type DateRangePayload = { fechaInicio: string; fechaFin: string };
+// --- TYPES IMPORTED FROM @/types/analytics ---
 
-type PeriodoConsulta = { fechaInicio: string; fechaFin: string };
-
-type CategoriaTrend = { id: number; nombre: string; cantidadIncidentes: number; porcentaje: number };
-
-type TendenciasCategoriasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	categorias: CategoriaTrend[];
-};
-
-type AgrupacionTemporal = 'DIARIA' | 'SEMANAL' | 'MENSUAL' | 'TRIMESTRAL' | 'ANUAL';
-
-type EvolucionCategoriasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	agrupacionTemporal: AgrupacionTemporal;
-	evolucionPorCategoria: Array<{
-		categoriaId: number;
-		categoriaNombre: string;
-		datosTemporales: Array<{ periodo: string; cantidad: number; porcentajeDelPeriodo: number }>;
-		estadisticas: { total: number; promedio: number; maximo: number; minimo: number; tendencia: string };
-	}>;
-	totalIncidentesPorPeriodo: Array<{ periodo: string; total: number }>;
-};
-
-type AnalisisHorarioResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	analisisPorHorario: Array<{ hora: number; cantidadIncidentes: number; porcentaje: number }>;
-	estadisticas: {
-		horaPico: number;
-		cantidadEnHoraPico: number;
-		horaMinima: number;
-		cantidadEnHoraMinima: number;
-		promedioIncidentesPorHora: number;
-	};
-};
-
-type RutaRef = { id: number; nombre: string };
-type CategoriaRef = { id: number; nombre: string };
-type CategoriaDistribucion = { nombre: string; cantidad: number; porcentaje: number };
-type DistribucionCategoriaSimple = { categoria: string; cantidad: number; porcentaje: number };
-type DistribucionEstado = { estado: string; cantidad: number; porcentaje: number };
-
-type RutasCriticasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	totalRutas: number;
-	topRutasCriticas: Array<{
-		ranking: number;
-		ruta: RutaRef;
-		cantidadIncidentes: number;
-		porcentaje: number;
-		categoriasPrincipales: CategoriaDistribucion[];
-	}>;
-	estadisticas: {
-		promedioIncidentesPorRuta: number;
-		rutaMasCritica: string;
-		rutaMenosCritica: string;
-	};
-};
-
-type PeriodoMensualResumen = {
-	mes: string;
-	totalIncidentes: number;
-	porCategoria: DistribucionCategoriaSimple[];
-	porEstado: DistribucionEstado[];
-};
-
-type ComparacionMensualResponse = {
-	periodo1: PeriodoMensualResumen;
-	periodo2: PeriodoMensualResumen;
-	comparacion: {
-		variacionTotal: number;
-		variacionPorcentual: number;
-		tendencia: string;
-	};
-};
-
-type PeriodoAnualResumen = {
-	anio: number;
-	totalIncidentes: number;
-	promedioMensual: number;
-	porCategoria: DistribucionCategoriaSimple[];
-	evolucionMensual: Array<{ mes: string; total: number }>;
-};
-
-type ComparacionAnualResponse = {
-	periodo1: PeriodoAnualResumen;
-	periodo2: PeriodoAnualResumen;
-	comparacion: {
-		variacionTotal: number;
-		variacionPorcentual: number;
-		tendencia: string;
-		categoriaConMayorCrecimiento?: string;
-		categoriaConMayorDecrecimiento?: string;
-	};
-};
-
-type AnalisisEstacionalResponse = {
-	anio: number;
-	totalIncidentes: number;
-	analisisPorEstacion: Array<{
-		estacion: string;
-		periodo: string;
-		cantidadIncidentes: number;
-		porcentaje: number;
-		promedioDiario: number;
-		categoriasPrincipales: CategoriaDistribucion[];
-	}>;
-	estadisticas: {
-		estacionConMasIncidentes: string;
-		estacionConMenosIncidentes: string;
-		diferenciaMaxima: number;
-	};
-};
-
-type SegmentoClave = 'madrugada' | 'manana' | 'tarde' | 'noche';
-type DayOfWeek = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-
-type SegmentoDetalle = {
-	rango: string;
-	cantidadTotal: number;
-	porcentaje: number;
-	promedioDiario: number;
-	categoriasPrincipales: CategoriaDistribucion[];
-} | null;
-
-type PatronesHorariosResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	patronesPorSegmento: Record<SegmentoClave, SegmentoDetalle>;
-	distribucionPorDiaSemana: Record<SegmentoClave, Record<DayOfWeek, number>>;
-};
-
-type IncidenteRecurrenteDetalle = {
-	ruta: RutaRef;
-	categoria: CategoriaRef;
-	cantidadIncidentes: number;
-	porcentajeDelTotal: number;
-	frecuenciaPromedioDias: number;
-	ultimoIncidente: string;
-};
-
-type IncidentesRecurrentesResponse = {
-	periodoConsulta: PeriodoConsulta;
-	umbralRecurrencia: number;
-	totalCombinacionesRecurrentes: number;
-	incidentesRecurrentes: IncidenteRecurrenteDetalle[];
-	estadisticas: {
-		combinacionConMasIncidentes: string;
-		rutaMasRecurrente: string;
-		categoriaMasRecurrente: string;
-		promedioFrecuenciaDias: number;
-	};
-};
-
-type ComparacionZonasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	comparacionPorZona: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		porcentaje: number;
-		distribucionCategorias: CategoriaDistribucion[];
-		categoriaDominante: string;
-	}>;
-	rankingPorCategoria: Record<string, Array<{ ruta: string; cantidad: number }>>;
-};
-
-type TiempoResolucionResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentesResueltos: number;
-	promedioGeneralDias: number;
-	promedioGeneralHoras: number;
-	tiempoPorCategoria: Array<{
-		categoria: CategoriaRef;
-		cantidadResueltos: number;
-		promedioDias: number;
-		promedioHoras: number;
-		minimoHoras: number;
-		maximoHoras: number;
-		medianaDias: number;
-	}>;
-};
-
-type RankingTendenciaRutasResponse = {
-	periodoConsulta: PeriodoConsulta;
-	agrupacionTemporal: AgrupacionTemporal;
-	rankingRutas: Array<{
-		ranking: number;
-		ruta: RutaRef;
-		totalIncidentes: number;
-		porcentaje: number;
-		evolucionTemporal: Array<{ periodo: string; cantidad: number }>;
-		tendencia: string;
-		variacionPorcentual: number;
-		prediccionProximoMes: number;
-	}>;
-	analisisGlobal: {
-		rutaConTendenciaPositiva?: string;
-		rutaConTendenciaNegativa?: string;
-		rutaMasEstable?: string;
-	};
-};
-
-type ProporcionEstadosResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	proporcionGlobal: {
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-	};
-	proporcionPorCategoria: Array<{
-		categoria: CategoriaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-		eficiencia: number;
-	}>;
-	proporcionPorRuta: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		porcentajeResueltos: number;
-		pendientes: number;
-		porcentajePendientes: number;
-		enProceso: number;
-		porcentajeEnProceso: number;
-		eficiencia: number;
-	}>;
-	metaEficiencia: {
-		metaPorcentajeResueltos: number;
-		cumplimientoGlobal: boolean;
-		categoriasQueCumplen: string[];
-		rutasQueCumplen: string[];
-		brechaPromedio: number;
-	};
-};
-
-type EficienciaCierreResponse = {
-	periodoConsulta: PeriodoConsulta;
-	totalIncidentes: number;
-	totalResueltos: number;
-	tasaCierreGlobal: number;
-	eficienciaPorCategoria: Array<{
-		categoria: CategoriaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		pendientes: number;
-		enProceso: number;
-		tasaCierre: number;
-		tiempoPromedioResolucionDias: number;
-	}>;
-	eficienciaPorRuta: Array<{
-		ruta: RutaRef;
-		totalIncidentes: number;
-		resueltos: number;
-		pendientes: number;
-		enProceso: number;
-		tasaCierre: number;
-		tiempoPromedioResolucionDias: number;
-	}>;
-	evolucionMensual: Array<{
-		mes: string;
-		totalIncidentes: number;
-		resueltos: number;
-		tasaCierre: number;
-	}>;
-};
-
+// --- STATE & API ---
 const session = useSession();
 const { postReport } = useAnalyticsApi({ getToken: () => session.authToken.value ?? undefined });
 
 const colorPalette = ['#2563eb', '#22c55e', '#f97316', '#a855f7', '#0ea5e9', '#ef4444', '#14b8a6', '#f59e0b'];
 const extendedPalette = [...colorPalette, '#f472b6', '#10b981', '#f87171', '#2dd4bf', '#fbbf24', '#6366f1'];
 
-const pieOptions: ChartOptions<'pie'> = {
-	plugins: {
-		legend: { position: 'bottom' },
-	},
-	maintainAspectRatio: false,
-};
+const pieOptions: ChartOptions<'pie'> = { plugins: { legend: { position: 'bottom' } }, maintainAspectRatio: false };
+const donutOptions: ChartOptions<'doughnut'> = { plugins: { legend: { position: 'bottom' } }, cutout: '60%', maintainAspectRatio: false };
+const lineOptions: ChartOptions<'line'> = { maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { position: 'bottom' } } };
+const barOptions: ChartOptions<'bar'> = { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } };
+const stackedBarOptions: ChartOptions<'bar'> = { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } };
+const horizontalBarOptions: ChartOptions<'bar'> = { ...barOptions, indexAxis: 'y' };
+const dualAxisBarOptions: ChartOptions<'bar'> = { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } };
 
-const donutOptions: ChartOptions<'doughnut'> = {
-	plugins: {
-		legend: { position: 'bottom' },
-	},
-	cutout: '60%',
-	maintainAspectRatio: false,
-};
-
-const lineOptions: ChartOptions<'line'> = {
-	maintainAspectRatio: false,
-	interaction: { intersect: false, mode: 'index' },
-	plugins: { legend: { position: 'bottom' } },
-};
-
-const barOptions: ChartOptions<'bar'> = {
-	maintainAspectRatio: false,
-	plugins: { legend: { display: false } },
-	scales: {
-		y: { beginAtZero: true },
-	},
-};
-
-const stackedBarOptions: ChartOptions<'bar'> = {
-	maintainAspectRatio: false,
-	plugins: { legend: { position: 'bottom' } },
-	scales: {
-		x: { stacked: true },
-		y: { stacked: true, beginAtZero: true },
-	},
-};
-
-const horizontalBarOptions: ChartOptions<'bar'> = {
-	...barOptions,
-	indexAxis: 'y',
-};
-
-const dualAxisBarOptions: ChartOptions<'bar'> = {
-	maintainAspectRatio: false,
-	plugins: { legend: { position: 'bottom' } },
-	scales: {
-		y: { beginAtZero: true, position: 'left' },
-		y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } },
-	},
-};
-
-type SectionState<TPayload, TResponse> = {
-	payload: TPayload;
-	loading: boolean;
-	error: string;
-	data: TResponse | null;
-};
-
-const createSectionState = <TPayload, TResponse>(payload: TPayload): SectionState<TPayload, TResponse> =>
-	reactive({
-		payload,
-		loading: false,
-		error: '',
-		data: null as TResponse | null,
-	}) as SectionState<TPayload, TResponse>;
+type SectionState<TPayload, TResponse> = { payload: TPayload; loading: boolean; error: string; data: TResponse | null };
+const createSectionState = <TPayload, TResponse>(payload: TPayload): SectionState<TPayload, TResponse> => reactive({ payload, loading: false, error: '', data: null as TResponse | null }) as SectionState<TPayload, TResponse>;
 
 const defaultRange = (days = 30): DateRangePayload => {
 	const end = new Date();
 	const start = new Date();
 	start.setDate(end.getDate() - days);
-	return {
-		fechaInicio: start.toISOString(),
-		fechaFin: end.toISOString(),
-	};
+	return { fechaInicio: start.toISOString(), fechaFin: end.toISOString() };
 };
-
 const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
 const defaultMonthRange = () => {
 	const now = new Date();
@@ -1265,41 +1004,23 @@ const defaultMonthRange = () => {
 };
 const currentYear = new Date().getFullYear();
 
+// --- REPORTS STATE ---
 const tendenciasCategorias = createSectionState<DateRangePayload, TendenciasCategoriasResponse>(defaultRange());
-const evolucionCategorias = createSectionState<DateRangePayload & { agrupacion: AgrupacionTemporal }, EvolucionCategoriasResponse>({
-	...defaultRange(90),
-	agrupacion: 'MENSUAL',
-});
+const evolucionCategorias = createSectionState<DateRangePayload & { agrupacion: AgrupacionTemporal }, EvolucionCategoriasResponse>({ ...defaultRange(90), agrupacion: 'MENSUAL' });
 const analisisHorario = createSectionState<DateRangePayload, AnalisisHorarioResponse>(defaultRange());
-
-const rutasCriticas = createSectionState<DateRangePayload & { top: number }, RutasCriticasResponse>({
-	...defaultRange(120),
-	top: 5,
-});
+const rutasCriticas = createSectionState<DateRangePayload & { top: number }, RutasCriticasResponse>({ ...defaultRange(120), top: 5 });
 const comparacionMensual = createSectionState<{ mes1: string; mes2: string }, ComparacionMensualResponse>(defaultMonthRange());
-const comparacionAnual = createSectionState<{ anio1: number; anio2: number }, ComparacionAnualResponse>({
-	anio1: currentYear - 1,
-	anio2: currentYear,
-});
+const comparacionAnual = createSectionState<{ anio1: number; anio2: number }, ComparacionAnualResponse>({ anio1: currentYear - 1, anio2: currentYear });
 const analisisEstacional = createSectionState<{ anio: number }, AnalisisEstacionalResponse>({ anio: currentYear });
 const patronesHorarios = createSectionState<DateRangePayload, PatronesHorariosResponse>(defaultRange(60));
-const incidentesRecurrentes = createSectionState<DateRangePayload & { umbralRecurrencia: number }, IncidentesRecurrentesResponse>({
-	...defaultRange(180),
-	umbralRecurrencia: 10,
-});
+const incidentesRecurrentes = createSectionState<DateRangePayload & { umbralRecurrencia: number }, IncidentesRecurrentesResponse>({ ...defaultRange(180), umbralRecurrencia: 10 });
 const comparacionZonas = createSectionState<DateRangePayload, ComparacionZonasResponse>(defaultRange(120));
-const tiempoResolucion = createSectionState<DateRangePayload, TiempoResolucionResponse>({
-	fechaInicio: '2020-01-01T00:00:00',
-	fechaFin: new Date().toISOString(),
-});
-const rankingTendenciaRutas = createSectionState<DateRangePayload & { agrupacion: AgrupacionTemporal; top: number }, RankingTendenciaRutasResponse>({
-	...defaultRange(365),
-	agrupacion: 'MENSUAL',
-	top: 5,
-});
+const tiempoResolucion = createSectionState<DateRangePayload, TiempoResolucionResponse>({ fechaInicio: '2020-01-01T00:00:00', fechaFin: new Date().toISOString() });
+const rankingTendenciaRutas = createSectionState<DateRangePayload & { agrupacion: AgrupacionTemporal; top: number }, RankingTendenciaRutasResponse>({ ...defaultRange(365), agrupacion: 'MENSUAL', top: 5 });
 const proporcionEstados = createSectionState<DateRangePayload, ProporcionEstadosResponse>(defaultRange(180));
 const eficienciaCierre = createSectionState<DateRangePayload, EficienciaCierreResponse>(defaultRange(365));
 
+// --- API ACTIONS ---
 const runReport = async <TPayload, TResponse>(endpoint: string, state: SectionState<TPayload, TResponse>) => {
 	state.loading = true;
 	state.error = '';
@@ -1330,41 +1051,30 @@ const generateEficienciaCierre = () => runReport('eficiencia-cierre', eficiencia
 
 const formatPercent = (value: number, digits = 1) => `${value.toFixed(digits)}%`;
 
+// --- CHARTS DATA COMPUTED ---
 const buildDonutDataset = (entries: Array<{ label: string; value: number }>): ChartData<'doughnut'> => ({
 	labels: entries.map((entry) => entry.label),
-	datasets: [
-		{
-			data: entries.map((entry) => entry.value),
-			backgroundColor: entries.map((_, idx) => extendedPalette[idx % extendedPalette.length]),
-		},
-	],
+	datasets: [{ data: entries.map((entry) => entry.value), backgroundColor: entries.map((_, idx) => extendedPalette[idx % extendedPalette.length]) }],
 });
 
 const tendenciasPieData = computed<ChartData<'pie'> | null>(() => {
-	if (!tendenciasCategorias.data) return null;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.tendenciasCategorias.data : tendenciasCategorias.data;
+	if (!data) return null;
 	return {
-		labels: tendenciasCategorias.data.categorias.map((cat) => cat.nombre),
-		datasets: [
-			{
-				data: tendenciasCategorias.data.categorias.map((cat) => cat.porcentaje),
-				backgroundColor: tendenciasCategorias.data.categorias.map((_, idx) => colorPalette[idx % colorPalette.length]),
-			},
-		],
+		labels: data.categorias.map((cat) => cat.nombre),
+		datasets: [{ data: data.categorias.map((cat) => cat.porcentaje), backgroundColor: data.categorias.map((_, idx) => colorPalette[idx % colorPalette.length]) }],
 	};
 });
 
 const evolucionLineData = computed<ChartData<'line'> | null>(() => {
-	const data = evolucionCategorias.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.evolucionCategorias.data : evolucionCategorias.data;
 	if (!data) return null;
 	const labels = data.totalIncidentesPorPeriodo?.map((per) => per.periodo) ?? [];
 	return {
 		labels,
 		datasets: data.evolucionPorCategoria.map((cat, idx) => ({
 			label: cat.categoriaNombre,
-			data: labels.map((label) => {
-				const punto = cat.datosTemporales.find((p) => p.periodo === label);
-				return punto ? punto.cantidad : 0;
-			}),
+			data: labels.map((label) => cat.datosTemporales.find((p) => p.periodo === label)?.cantidad ?? 0),
 			borderColor: colorPalette[idx % colorPalette.length],
 			fill: false,
 			borderWidth: 2,
@@ -1373,21 +1083,16 @@ const evolucionLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const horarioBarData = computed<ChartData<'bar'> | null>(() => {
-	if (!analisisHorario.data) return null;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.analisisHorario.data : analisisHorario.data;
+	if (!data) return null;
 	return {
-		labels: analisisHorario.data.analisisPorHorario.map((item) => `${item.hora} h`),
-		datasets: [
-			{
-				label: 'Incidentes',
-				backgroundColor: '#3b82f6',
-				data: analisisHorario.data.analisisPorHorario.map((item) => item.cantidadIncidentes),
-			},
-		],
+		labels: data.analisisPorHorario.map((item) => `${item.hora} h`),
+		datasets: [{ label: 'Incidentes', backgroundColor: '#3b82f6', data: data.analisisPorHorario.map((item) => item.cantidadIncidentes) }],
 	};
 });
 
 const rutasCriticasStackedData = computed<ChartData<'bar'> | null>(() => {
-	const data = rutasCriticas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.rutasCriticas.data : rutasCriticas.data;
 	if (!data) return null;
 	const labels = data.topRutasCriticas.map((ruta) => ruta.ruta.nombre);
 	const categoriaSet = new Set<string>();
@@ -1404,27 +1109,17 @@ const rutasCriticasStackedData = computed<ChartData<'bar'> | null>(() => {
 	};
 });
 
-const comparacionMensualCategoriaData = computed<{
-	periodo1: ChartData<'doughnut'>;
-	periodo2: ChartData<'doughnut'>;
-} | null>(() => {
-	const data = comparacionMensual.data;
+const comparacionMensualCategoriaData = computed(() => {
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionMensual.data : comparacionMensual.data;
 	if (!data) return null;
 	return {
-		periodo1: buildDonutDataset(
-			data.periodo1.porCategoria.map((cat) => ({ label: cat.categoria, value: cat.porcentaje })),
-		),
-		periodo2: buildDonutDataset(
-			data.periodo2.porCategoria.map((cat) => ({ label: cat.categoria, value: cat.porcentaje })),
-		),
+		periodo1: buildDonutDataset(data.periodo1.porCategoria.map((cat) => ({ label: cat.categoria, value: cat.porcentaje }))),
+		periodo2: buildDonutDataset(data.periodo2.porCategoria.map((cat) => ({ label: cat.categoria, value: cat.porcentaje }))),
 	};
 });
 
-const comparacionMensualEstadoData = computed<{
-	periodo1: ChartData<'doughnut'>;
-	periodo2: ChartData<'doughnut'>;
-} | null>(() => {
-	const data = comparacionMensual.data;
+const comparacionMensualEstadoData = computed(() => {
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionMensual.data : comparacionMensual.data;
 	if (!data) return null;
 	return {
 		periodo1: buildDonutDataset(data.periodo1.porEstado.map((estado) => ({ label: estado.estado, value: estado.porcentaje }))),
@@ -1433,89 +1128,46 @@ const comparacionMensualEstadoData = computed<{
 });
 
 const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
-	const data = comparacionAnual.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionAnual.data : comparacionAnual.data;
 	if (!data) return null;
-	const labelsSet = new Set([
-		...data.periodo1.evolucionMensual.map((item) => item.mes),
-		...data.periodo2.evolucionMensual.map((item) => item.mes),
-	]);
+	const labelsSet = new Set([...data.periodo1.evolucionMensual.map((item) => item.mes), ...data.periodo2.evolucionMensual.map((item) => item.mes)]);
 	const labels = Array.from(labelsSet).sort();
-	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) =>
-		labels.map((label) => evolucion.find((item) => item.mes === label)?.total ?? 0);
+	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) => labels.map((label) => evolucion.find((item) => item.mes === label)?.total ?? 0);
 	return {
 		labels,
 		datasets: [
-			{
-				label: `${data.periodo1.anio}`,
-				data: buildSeries(data.periodo1.evolucionMensual),
-				borderColor: colorPalette[0],
-				fill: false,
-				borderWidth: 2,
-			},
-			{
-				label: `${data.periodo2.anio}`,
-				data: buildSeries(data.periodo2.evolucionMensual),
-				borderColor: colorPalette[1],
-				fill: false,
-				borderWidth: 2,
-			},
+			{ label: `${data.periodo1.anio}`, data: buildSeries(data.periodo1.evolucionMensual), borderColor: colorPalette[0], fill: false, borderWidth: 2 },
+			{ label: `${data.periodo2.anio}`, data: buildSeries(data.periodo2.evolucionMensual), borderColor: colorPalette[1], fill: false, borderWidth: 2 },
 		],
 	};
 });
 
 const analisisEstacionalBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = analisisEstacional.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.analisisEstacional.data : analisisEstacional.data;
 	if (!data) return null;
 	return {
 		labels: data.analisisPorEstacion.map((item) => item.estacion),
 		datasets: [
-			{
-				label: 'Incidentes',
-				data: data.analisisPorEstacion.map((item) => item.cantidadIncidentes),
-				backgroundColor: '#2563eb',
-				yAxisID: 'y',
-			},
-			{
-				label: '% participación',
-				data: data.analisisPorEstacion.map((item) => item.porcentaje),
-				backgroundColor: '#f97316',
-				yAxisID: 'y1',
-			},
+			{ label: 'Incidentes', data: data.analisisPorEstacion.map((item) => item.cantidadIncidentes), backgroundColor: '#2563eb', yAxisID: 'y' },
+			{ label: '% participación', data: data.analisisPorEstacion.map((item) => item.porcentaje), backgroundColor: '#f97316', yAxisID: 'y1' },
 		],
 	};
 });
 
 const segmentOrder: SegmentoClave[] = ['madrugada', 'manana', 'tarde', 'noche'];
-const segmentLabels: Record<SegmentoClave, string> = {
-	madrugada: 'Madrugada',
-	manana: 'Mañana',
-	tarde: 'Tarde',
-	noche: 'Noche',
-};
+const segmentLabels: Record<SegmentoClave, string> = { madrugada: 'Madrugada', manana: 'Mañana', tarde: 'Tarde', noche: 'Noche' };
 const dayOrder: DayOfWeek[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-const dayLabels: Record<DayOfWeek, string> = {
-	lunes: 'Lunes',
-	martes: 'Martes',
-	miercoles: 'Miércoles',
-	jueves: 'Jueves',
-	viernes: 'Viernes',
-	sabado: 'Sábado',
-	domingo: 'Domingo',
-};
+const dayLabels: Record<DayOfWeek, string> = { lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles', jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo' };
 
 const patronesSegmentosChartData = computed<ChartData<'bar'> | null>(() => {
-	const data = patronesHorarios.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.patronesHorarios.data : patronesHorarios.data;
 	if (!data) return null;
 	const labels = dayOrder.map((day) => dayLabels[day]);
 	const datasets = segmentOrder
 		.map((segment, idx) => {
 			const dayValues = data.distribucionPorDiaSemana?.[segment];
 			const values = dayOrder.map((day) => (dayValues ? dayValues[day] ?? 0 : 0));
-			return {
-				label: segmentLabels[segment],
-				data: values,
-				backgroundColor: extendedPalette[idx % extendedPalette.length],
-			};
+			return { label: segmentLabels[segment], data: values, backgroundColor: extendedPalette[idx % extendedPalette.length] };
 		})
 		.filter((dataset) => dataset.data.some((value) => value > 0));
 	if (!datasets.length) return null;
@@ -1523,37 +1175,24 @@ const patronesSegmentosChartData = computed<ChartData<'bar'> | null>(() => {
 });
 
 type SegmentCard = { key: SegmentoClave; label: string; detalle: Exclude<SegmentoDetalle, null> };
-
 const patronesSegmentCards = computed<SegmentCard[]>(() => {
-	const data = patronesHorarios.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.patronesHorarios.data : patronesHorarios.data;
 	if (!data) return [];
-	return segmentOrder
-		.map((segment) => ({
-			key: segment,
-			label: segmentLabels[segment],
-			detalle: data.patronesPorSegmento[segment],
-		}))
-		.filter((segmento): segmento is SegmentCard => Boolean(segmento.detalle));
+	return segmentOrder.map((segment) => ({ key: segment, label: segmentLabels[segment], detalle: data.patronesPorSegmento[segment] })).filter((segmento): segmento is SegmentCard => Boolean(segmento.detalle));
 });
 
 const incidentesRecurrentesBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = incidentesRecurrentes.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.incidentesRecurrentes.data : incidentesRecurrentes.data;
 	if (!data || !data.incidentesRecurrentes.length) return null;
 	const top = data.incidentesRecurrentes.slice(0, 6);
 	return {
 		labels: top.map((item) => `${item.ruta.nombre} - ${item.categoria.nombre}`),
-		datasets: [
-			{
-				label: 'Incidentes',
-				data: top.map((item) => item.cantidadIncidentes),
-				backgroundColor: '#f97316',
-			},
-		],
+		datasets: [{ label: 'Incidentes', data: top.map((item) => item.cantidadIncidentes), backgroundColor: '#f97316' }],
 	};
 });
 
 const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
-	const data = comparacionZonas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionZonas.data : comparacionZonas.data;
 	if (!data) return null;
 	const labels = data.comparacionPorZona.map((zona) => zona.ruta.nombre);
 	const categoriaSet = new Set<string>();
@@ -1571,22 +1210,16 @@ const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
 });
 
 const tiempoResolucionBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = tiempoResolucion.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.tiempoResolucion.data : tiempoResolucion.data;
 	if (!data) return null;
 	return {
 		labels: data.tiempoPorCategoria.map((item) => item.categoria.nombre),
-		datasets: [
-			{
-				label: 'Promedio días',
-				data: data.tiempoPorCategoria.map((item) => item.promedioDias),
-				backgroundColor: '#0ea5e9',
-			},
-		],
+		datasets: [{ label: 'Promedio días', data: data.tiempoPorCategoria.map((item) => item.promedioDias), backgroundColor: '#0ea5e9' }],
 	};
 });
 
 const rankingRutasLineData = computed<ChartData<'line'> | null>(() => {
-	const data = rankingTendenciaRutas.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.rankingTendenciaRutas.data : rankingTendenciaRutas.data;
 	if (!data) return null;
 	const labelsSet = new Set<string>();
 	data.rankingRutas.forEach((ruta) => ruta.evolucionTemporal.forEach((punto) => labelsSet.add(punto.periodo)));
@@ -1604,7 +1237,7 @@ const rankingRutasLineData = computed<ChartData<'line'> | null>(() => {
 });
 
 const proporcionEstadosDonut = computed<ChartData<'doughnut'> | null>(() => {
-	const data = proporcionEstados.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.proporcionEstados.data : proporcionEstados.data;
 	if (!data) return null;
 	return buildDonutDataset([
 		{ label: 'Resueltos', value: data.proporcionGlobal.porcentajeResueltos },
@@ -1614,263 +1247,522 @@ const proporcionEstadosDonut = computed<ChartData<'doughnut'> | null>(() => {
 });
 
 const proporcionEstadosCategoriaStacked = computed<ChartData<'bar'> | null>(() => {
-	const data = proporcionEstados.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.proporcionEstados.data : proporcionEstados.data;
 	if (!data) return null;
 	const labels = data.proporcionPorCategoria.map((item) => item.categoria.nombre);
 	return {
 		labels,
 		datasets: [
-			{
-				label: 'Resueltos',
-				data: data.proporcionPorCategoria.map((item) => item.porcentajeResueltos),
-				backgroundColor: '#22c55e',
-				stack: 'estado',
-			},
-			{
-				label: 'Pendientes',
-				data: data.proporcionPorCategoria.map((item) => item.porcentajePendientes),
-				backgroundColor: '#ef4444',
-				stack: 'estado',
-			},
-			{
-				label: 'En proceso',
-				data: data.proporcionPorCategoria.map((item) => item.porcentajeEnProceso),
-				backgroundColor: '#f59e0b',
-				stack: 'estado',
-			},
+			{ label: 'Resueltos', data: data.proporcionPorCategoria.map((item) => item.porcentajeResueltos), backgroundColor: '#22c55e', stack: 'estado' },
+			{ label: 'Pendientes', data: data.proporcionPorCategoria.map((item) => item.porcentajePendientes), backgroundColor: '#ef4444', stack: 'estado' },
+			{ label: 'En proceso', data: data.proporcionPorCategoria.map((item) => item.porcentajeEnProceso), backgroundColor: '#f59e0b', stack: 'estado' },
 		],
 	};
 });
 
 const eficienciaCierreLineData = computed<ChartData<'line'> | null>(() => {
-	const data = eficienciaCierre.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.eficienciaCierre.data : eficienciaCierre.data;
 	if (!data) return null;
 	return {
 		labels: data.evolucionMensual.map((item) => item.mes),
-		datasets: [
-			{
-				label: 'Tasa de cierre (%)',
-				data: data.evolucionMensual.map((item) => item.tasaCierre),
-				borderColor: '#16a34a',
-				fill: false,
-				borderWidth: 2,
-			},
-		],
+		datasets: [{ label: 'Tasa de cierre (%)', data: data.evolucionMensual.map((item) => item.tasaCierre), borderColor: '#16a34a', fill: false, borderWidth: 2 }],
 	};
 });
 
 const eficienciaCategoriaBarData = computed<ChartData<'bar'> | null>(() => {
-	const data = eficienciaCierre.data;
+	const data = activeReportId.value === 'overview' ? overviewState.reports.eficienciaCierre.data : eficienciaCierre.data;
 	if (!data) return null;
 	return {
 		labels: data.eficienciaPorCategoria.map((item) => item.categoria.nombre),
-		datasets: [
-			{
-				label: 'Tasa de cierre (%)',
-				data: data.eficienciaPorCategoria.map((item) => item.tasaCierre),
-				backgroundColor: '#9333ea',
-			},
-		],
+		datasets: [{ label: 'Tasa de cierre (%)', data: data.eficienciaPorCategoria.map((item) => item.tasaCierre), backgroundColor: '#9333ea' }],
 	};
+});
+
+// --- NAVIGATION ---
+const reports = [
+	{ id: 'overview', label: 'Vista General', icon: gridOutline },
+	{ id: 'tendencias-categorias', label: 'Tendencias por categoría', icon: pieChartOutline },
+	{ id: 'evolucion-categorias', label: 'Evolución de categorías', icon: trendingUpOutline },
+	{ id: 'analisis-horario', label: 'Análisis por horario', icon: timeOutline },
+	{ id: 'rutas-criticas', label: 'Rutas críticas', icon: alertCircleOutline },
+	{ id: 'comparacion-mensual', label: 'Comparación mensual', icon: calendarOutline },
+	{ id: 'comparacion-anual', label: 'Comparación anual', icon: calendarNumberOutline },
+	{ id: 'analisis-estacional', label: 'Análisis estacional', icon: leafOutline },
+	{ id: 'patrones-horarios', label: 'Patrones horarios', icon: gridOutline },
+	{ id: 'incidentes-recurrentes', label: 'Incidentes recurrentes', icon: repeatOutline },
+	{ id: 'comparacion-zonas', label: 'Comparación por zonas', icon: mapOutline },
+	{ id: 'tiempo-resolucion', label: 'Tiempo de resolución', icon: hourglassOutline },
+	{ id: 'ranking-rutas', label: 'Ranking de tendencia', icon: listOutline },
+	{ id: 'proporcion-estados', label: 'Proporción de estados', icon: pieChartOutline },
+	{ id: 'eficiencia-cierre', label: 'Eficiencia de cierre', icon: checkmarkDoneCircleOutline },
+];
+
+const activeReportId = ref(reports[0].id);
+const activeReport = computed(() => reports.find((r) => r.id === activeReportId.value));
+
+// --- OVERVIEW STATE ---
+const overviewState = useOverviewState();
+const showOverviewSettings = ref(false);
+const overviewSettings = reactive<Record<string, boolean>>({});
+
+const loadOverviewSettings = () => {
+	const saved = localStorage.getItem('analytics_overview_settings');
+	if (saved) {
+		try {
+			const parsed = JSON.parse(saved);
+			Object.assign(overviewSettings, parsed);
+		} catch (e) {
+			console.error('Error loading overview settings', e);
+		}
+	}
+	// Ensure all reports have a default value if not present
+	reports.filter(r => r.id !== 'overview').forEach(r => {
+		if (overviewSettings[r.id] === undefined) {
+			overviewSettings[r.id] = false; // Default to hidden
+		}
+	});
+};
+
+const saveOverviewSettings = () => {
+	localStorage.setItem('analytics_overview_settings', JSON.stringify(overviewSettings));
+};
+
+watch(overviewSettings, () => {
+	saveOverviewSettings();
+}, { deep: true });
+
+const loadOverviewData = async () => {
+	await overviewState.fetchOverviewData(overviewSettings);
+};
+
+const refreshOverview = () => {
+	loadOverviewData();
+};
+
+// Load settings on mount
+onMounted(() => {
+	loadOverviewSettings();
+	if (activeReportId.value === 'overview') {
+		loadOverviewData();
+	}
+});
+
+// Watch for tab change to overview to load data
+watch(activeReportId, (newId) => {
+	if (newId === 'overview') {
+		loadOverviewData();
+	}
 });
 </script>
 
 <style scoped>
-.tendencias-analisis {
-	--page-padding: 16px;
+
+
+.dashboard-container {
+	display: flex;
+	height: 100%;
+	background: var(--page-bg);
+	font-family: inherit;
 }
 
-.intro {
-	padding: var(--page-padding);
-}
-
-.report-accordion-group {
-	margin: 0 16px 32px;
-}
-
-.section-content {
-	padding: 16px;
+.dashboard-sidebar {
+	width: 280px;
+	background: var(--card-bg);
+	border-right: 1px solid var(--border-color);
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	overflow-y: auto;
+	flex-shrink: 0;
 }
 
+.sidebar-header {
+	padding: 24px 20px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-header h2 {
+	margin: 0;
+	font-size: 1.25rem;
+	font-weight: 700;
+	color: #0f172a; /* Slate 900 */
+	letter-spacing: -0.025em;
+}
+
+.sidebar-nav {
+	padding: 16px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.nav-button {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px 16px;
+	border: none;
+	background: transparent;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	color: var(--ion-text-secondary);
+	font-size: 0.95rem;
+	font-weight: 500;
+	text-align: left;
+	transition: all 0.2s ease;
+	font-family: inherit;
+}
+
+.nav-button:hover {
+	background: #f1f5f9;
+	color: var(--ion-text-color);
+}
+
+.nav-button.active {
+	background: #eff6ff;
+	color: var(--ion-color-primary);
+	font-weight: 600;
+}
+
+.nav-button ion-icon {
+	font-size: 1.25rem;
+}
+
+.dashboard-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
+	padding: 32px;
+	gap: 24px;
+	/* Ensure content can grow */
+	min-height: 0;
+}
+
+.content-header h1 {
+	margin: 0 0 8px;
+	font-size: 1.8rem;
+	font-weight: 700;
+	color: #0f172a; /* Slate 900 */
+	letter-spacing: -0.025em;
+}
+
+.subtitle {
+	margin: 0;
+	color: #64748b; /* Slate 500 */
+	font-size: 1rem;
+}
+
+.report-container {
+	background: var(--card-bg);
+	border-radius: var(--radius-lg);
+	padding: 24px;
+	box-shadow: var(--shadow-md);
+	/* Use auto to ensure it grows with content */
+	height: auto;
+	min-height: 400px;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	border: 1px solid var(--border-color);
+}
+
+.report-section {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	width: 100%;
+}
+
+/* Reused styles from original with improvements */
 .controls {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
+	gap: 16px;
+	margin-bottom: 24px;
+	padding: 20px;
+	background: #f8fafc;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-color);
 }
 
 .control-pair {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
-	min-width: 180px;
-	font-size: 0.9rem;
+	gap: 8px;
+	min-width: 200px;
+}
+
+.control-pair span {
+	font-size: 0.75rem;
+	font-weight: 700;
+	color: var(--ion-text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
 }
 
 .actions {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: 16px;
+	margin-bottom: 24px;
 }
 
 .visualizations {
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: 24px;
 }
 
-	/* Layout helpers for side-by-side visuals and rectangular table cards */
-	.visual-row {
-		display: flex;
-		gap: 16px;
-		align-items: flex-start;
-		/* Keep chart and table always side-by-side; allow horizontal scroll on small screens */
-		flex-wrap: nowrap;
-		overflow-x: auto;
-		padding-bottom: 6px;
-	}
-
-	.visual-card {
-		flex: 1 1 auto;
-		min-width: 360px;
-		background: var(--ion-color-step-100, #ffffff);
-		border-radius: 12px;
-		padding: 12px;
-		box-shadow: 0 1px 4px rgba(2, 6, 23, 0.06);
-		/* Charts should shrink but remain usable */
-	}
-
-	.table-card {
-		flex: 0 0 420px; /* fixed side width so tables are visible */
-		min-width: 320px;
-		min-height: 0;
-		max-height: 720px;
-		background: var(--ion-color-step-100, #ffffff);
-		border: 1px solid var(--ion-color-step-150, #e6eef9);
-		border-radius: 10px;
-		padding: 8px 10px;
-		overflow: auto;
-		display: block;
-	}
-
-	.table-card .data-table {
-		width: 100%;
-		table-layout: auto;
-		white-space: nowrap; /* prevent cell wrap so columns remain intact */
-	}
-
-	/* Ensure th/td don't wrap and keep table readable; rely on horizontal scroll when needed */
-	.data-table th,
-	.data-table td {
-		white-space: nowrap;
-	}
-
-	
-	.visualizations > .table-card {
-		width: fit-content;
-		max-width: calc(100% - 48px);
-		min-width: 260px;
-		margin: 0 auto 8px auto;
-		padding: 6px 10px;
-		height: auto;
-		min-height: 0;
-		/* remove max-height to allow table to size naturally by content */
-		max-height: none;
-		/* let the card grow to content height; avoid forcing vertical scroll */
-		overflow-y: visible;
-		/* When stacked (column direction), override flex so height follows content */
-		flex: none;
-		box-shadow: none;
-		border-color: var(--ion-color-step-140, #dbe7fb);
-	}
-
-	/* Reduce cell padding for compact stacked tables */
-	.visualizations > .table-card .data-table th,
-	.visualizations > .table-card .data-table td {
-		padding: 6px 8px;
-	}
-
-	/* For stacked (compact) table-cards, let the table size to its content height and width; parent .table-card will handle overflow if necessary */
-	.visualizations > .table-card .data-table {
-		width: auto;
-		display: inline-table;
-		border-collapse: collapse;
-	}
-
-.charts-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-	gap: 16px;
-}
-
-.chart-card {
-	background: var(--ion-color-step-100, #f8fafc);
-	border-radius: 12px;
-	padding: 12px;
-	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-}
-
-.segment-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-	gap: 12px;
-}
-
-.segment-card {
-	background: var(--ion-color-step-100, #f1f5f9);
-	border-radius: 10px;
-	padding: 12px;
-	border: 1px solid var(--ion-color-step-150, #e2e8f0);
-}
-
-.meta-banner {
-	background: var(--ion-color-step-100, #f8fafc);
-	border: 1px dashed var(--ion-color-medium, #94a3b8);
-	border-radius: 10px;
-	padding: 12px;
+.visual-row {
 	display: flex;
-	gap: 12px;
+	gap: 24px;
 	flex-wrap: wrap;
-	justify-content: space-between;
 }
 
-.data-table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 0.9rem;
-}
-
-.data-table th,
-.data-table td {
-	padding: 8px;
-	border-bottom: 1px solid var(--ion-color-step-150, #e2e8f0);
+.visual-card, .table-card {
+	flex: 1;
+	min-width: 350px;
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-md);
+	padding: 20px;
+	box-shadow: var(--shadow-sm);
 }
 
 .kpi-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.data-table {
+	width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 0.9rem;
+}
+
+.data-table th {
+	background: #f8fafc;
+	font-weight: 600;
+	color: var(--ion-text-secondary);
+	padding: 12px 16px;
+	text-align: left;
+	border-bottom: 1px solid var(--border-color);
+	text-transform: uppercase;
+	font-size: 0.75rem;
+	letter-spacing: 0.05em;
+}
+
+.data-table td {
+	padding: 14px 16px;
+	border-bottom: 1px solid var(--border-color);
+	color: var(--ion-text-color);
+}
+
+.data-table tr:last-child td {
+	border-bottom: none;
+}
+
+.charts-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 24px;
+}
+
+.chart-card {
+	background: var(--card-bg);
+	border-radius: var(--radius-md);
+	padding: 20px;
+	border: 1px solid var(--border-color);
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	box-shadow: var(--shadow-sm);
+}
+
+.chart-card h4 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+	text-align: center;
+}
+
+@media (max-width: 1024px) {
+	.dashboard-container {
+		flex-direction: column;
+	}
+	.dashboard-sidebar {
+		width: 100%;
+		height: auto;
+		max-height: 200px;
+		border-right: none;
+		border-bottom: 1px solid var(--border-color);
+	}
+	.dashboard-content {
+		padding: 16px;
+	}
+}
+
+.tendencias-analisis {
+	--background: var(--page-bg);
+	--color: var(--ion-text-color);
+	color: var(--ion-text-color);
+}
+
+.tendencias-analisis ion-content {
+	--background: var(--page-bg);
+	--color: var(--ion-text-color);
+}
+
+/* Force dark text for tables and inputs specifically */
+.data-table th,
+.data-table td {
+	color: #0f172a !important;
+}
+
+.tendencias-analisis ion-input,
+.tendencias-analisis ion-select,
+.tendencias-analisis ion-datetime {
+	color: #0f172a !important;
+	--color: #0f172a !important;
+	--placeholder-color: #64748b !important;
+}
+
+.overview-header {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 16px;
+}
+
+.settings-panel {
+	background: #f8fafc;
+	padding: 16px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-color);
+	margin-bottom: 24px;
+}
+
+.settings-panel h3 {
+	margin: 0 0 16px;
+	font-size: 1rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+}
+
+.setting-item ion-checkbox {
+	--label-color: #0f172a; /* Slate 900 */
+	color: #0f172a;
+	font-size: 0.95rem;
+}
+
+.settings-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 	gap: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-	.section-content {
-		background: rgba(15, 23, 42, 0.2);
-		border-radius: 12px;
-	}
+.overview-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+	gap: 24px;
+}
 
-	.chart-card,
-	.segment-card,
-	.meta-banner {
-		background: rgba(15, 23, 42, 0.4);
-		border-color: rgba(148, 163, 184, 0.3);
-		box-shadow: none;
-	}
+.overview-card {
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-md);
+	padding: 16px;
+	box-shadow: var(--shadow-sm);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	color: #0f172a; /* Slate 900 */
+}
 
-	.data-table th,
-	.data-table td {
-		border-color: rgba(148, 163, 184, 0.2);
+.overview-card.wide {
+	grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+	.overview-card.wide {
+		grid-column: span 1;
 	}
+}
+
+.overview-card h4 {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+	border-bottom: 1px solid var(--border-color);
+	padding-bottom: 8px;
+}
+
+.chart-wrapper {
+	flex: 1;
+	min-height: 200px;
+	position: relative;
+}
+
+.kpi-mini-grid {
+	display: flex;
+	gap: 16px;
+	margin-bottom: 8px;
+}
+
+.kpi-mini {
+	display: flex;
+	flex-direction: column;
+}
+
+.kpi-mini .label {
+	font-size: 0.75rem;
+	color: #64748b; /* Slate 500 */
+	text-transform: uppercase;
+	font-weight: 700;
+}
+
+.kpi-mini .value {
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: #0f172a; /* Slate 900 */
+}
+
+.dual-chart-row {
+	display: flex;
+	gap: 16px;
+}
+
+.half-chart {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #0f172a;
+}
+
+.half-chart small {
+	color: #64748b;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.text-success { color: var(--ion-color-success); }
+.text-danger { color: var(--ion-color-danger); }
+
+.segment-card h4 {
+	margin: 0 0 8px;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #0f172a; /* Slate 900 */
+}
+
+.segment-card p {
+	margin: 4px 0;
+	font-size: 0.85rem;
+	color: #64748b; /* Slate 500 */
 }
 </style>
