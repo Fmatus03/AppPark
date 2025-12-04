@@ -56,10 +56,7 @@
             </ion-item>
           </ion-list>
 
-          <ion-item lines="none" class="remember-session">
-            <ion-checkbox slot="start" v-model="rememberSession" aria-label="Mantener sesión abierta" />
-            <ion-label>Mantener sesión abierta</ion-label>
-          </ion-item>
+
 
           <ion-button
             expand="block"
@@ -125,7 +122,7 @@ const showPassword = ref(false);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 const runningOnAndroidApp = ref(isAndroidNativeApp());
-const rememberSession = ref(false);
+
 const { login: setSessionUser } = useSession();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
@@ -145,7 +142,7 @@ const resetForm = () => {
   showPassword.value = false;
   isSubmitting.value = false;
   errorMessage.value = '';
-  rememberSession.value = false;
+
 };
 
 const forgotPassword = () => {
@@ -155,7 +152,7 @@ const forgotPassword = () => {
 
 const goToRegister = () => {
   resetForm();
-  router.push({ name: 'Register' });
+  window.open('https://app-park-landing.vercel.app/', '_system');
 };
 const clearEmail = () => {
   email.value = '';
@@ -232,15 +229,12 @@ const onSubmit = async () => {
 
       // Persist session only after role is authorized
       const username = correo.split('@')[0] ?? 'Usuario';
-      setSessionUser(
-        {
-          id: correo,
-          name: username,
-          role,
-          token,
-        },
-        rememberSession.value,
-      );
+      setSessionUser({
+        id: correo,
+        name: username,
+        role,
+        token,
+      });
 
       console.log('login-success', { correo, role, token });
       const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
@@ -339,19 +333,7 @@ const onSubmit = async () => {
   color: #0f172a;
 }
 
-.remember-session {
-  --inner-padding-end: 0;
-  margin-top: 0.5rem;
-  border-radius: var(--radius-md);
-  --background: transparent;
-  --color: var(--ion-text-color);
-}
 
-.remember-session ion-label {
-  margin-left: 0.5rem;
-  font-size: 0.95rem;
-  color: var(--ion-text-secondary);
-}
 
 .login-button {
   --background: var(--ion-color-primary);

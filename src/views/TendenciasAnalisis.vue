@@ -211,6 +211,12 @@
 									<analytics-chart v-if="tendenciasPieData" type="pie" :data="tendenciasPieData" :options="pieOptions" :height="280" />
 								</div>
 								<div class="table-card">
+									<div class="table-header">
+										<h4>Detalle</h4>
+										<ion-button fill="clear" size="small" @click="exportToCSV('tendencias-categorias', ['Categoría', 'Incidentes', '%'], tendenciasCategorias.data?.categorias.map(c => [c.nombre, c.cantidadIncidentes, formatPercent(c.porcentaje)]) ?? [])" :disabled="!tendenciasCategorias.data">
+											<ion-icon :icon="downloadOutline" slot="icon-only" />
+										</ion-button>
+									</div>
 									<table class="data-table">
 										<thead>
 											<tr>
@@ -265,6 +271,12 @@
 								<analytics-chart v-if="evolucionLineData" type="line" :data="evolucionLineData" :options="lineOptions" :height="320" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('evolucion-categorias', ['Categoría', 'Total', 'Promedio', 'Máx', 'Mín', 'Tendencia'], evolucionCategorias.data?.evolucionPorCategoria.map(c => [c.categoriaNombre, c.estadisticas.total, c.estadisticas.promedio.toFixed(1), c.estadisticas.maximo, c.estadisticas.minimo, c.estadisticas.tendencia]) ?? [])" :disabled="!evolucionCategorias.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -358,6 +370,12 @@
 									/>
 								</div>
 								<div class="table-card">
+									<div class="table-header">
+										<h4>Detalle</h4>
+										<ion-button fill="clear" size="small" @click="exportToCSV('rutas-criticas', ['Ranking', 'Ruta', 'Incidentes', '%'], rutasCriticas.data?.topRutasCriticas.map(r => [r.ranking, r.ruta.nombre, r.cantidadIncidentes, formatPercent(r.porcentaje)]) ?? [])" :disabled="!rutasCriticas.data">
+											<ion-icon :icon="downloadOutline" slot="icon-only" />
+										</ion-button>
+									</div>
 									<table class="data-table">
 										<thead>
 											<tr>
@@ -457,6 +475,12 @@
 								<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="320" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('comparacion-anual', ['Año', 'Total', 'Promedio Mensual'], [comparacionAnual.data?.periodo1, comparacionAnual.data?.periodo2].filter(Boolean).map(p => [p!.anio, p!.totalIncidentes, p!.promedioMensual.toFixed(1)]))" :disabled="!comparacionAnual.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -518,6 +542,12 @@
 								/>
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('analisis-estacional', ['Estación', 'Periodo', 'Incidentes', '%', 'Promedio Diario'], analisisEstacional.data?.analisisPorEstacion.map(e => [e.estacion, e.periodo, e.cantidadIncidentes, formatPercent(e.porcentaje), e.promedioDiario.toFixed(1)]) ?? [])" :disabled="!analisisEstacional.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -606,6 +636,12 @@
 								<analytics-chart v-if="incidentesRecurrentesBarData" type="bar" :data="incidentesRecurrentesBarData" :options="horizontalBarOptions" :height="320" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('incidentes-recurrentes', ['Ruta', 'Categoría', 'Incidentes', '% del total', 'Último incidente'], incidentesRecurrentes.data?.incidentesRecurrentes.map(i => [i.ruta.nombre, i.categoria.nombre, i.cantidadIncidentes, formatPercent(i.porcentajeDelTotal), new Date(i.ultimoIncidente).toLocaleString()]) ?? [])" :disabled="!incidentesRecurrentes.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -660,6 +696,12 @@
 									/>
 								</div>
 								<div class="table-card">
+									<div class="table-header">
+										<h4>Detalle</h4>
+										<ion-button fill="clear" size="small" @click="exportToCSV('comparacion-zonas', ['Ruta', 'Incidentes', '%', 'Dominante'], comparacionZonas.data?.comparacionPorZona.map(z => [z.ruta.nombre, z.totalIncidentes, formatPercent(z.porcentaje), z.categoriaDominante]) ?? [])" :disabled="!comparacionZonas.data">
+											<ion-icon :icon="downloadOutline" slot="icon-only" />
+										</ion-button>
+									</div>
 									<table class="data-table">
 										<thead>
 											<tr>
@@ -710,6 +752,12 @@
 								<analytics-chart v-if="tiempoResolucionBarData" type="bar" :data="tiempoResolucionBarData" :options="barOptions" :height="300" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('tiempo-resolucion', ['Categoría', 'Resueltos', 'Promedio días', 'Mín horas', 'Máx horas', 'Mediana días'], tiempoResolucion.data?.tiempoPorCategoria.map(c => [c.categoria.nombre, c.cantidadResueltos, c.promedioDias.toFixed(1), c.minimoHoras, c.maximoHoras, c.medianaDias]) ?? [])" :disabled="!tiempoResolucion.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -778,6 +826,12 @@
 								<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="320" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('ranking-rutas', ['Ranking', 'Ruta', 'Total', '%', 'Tendencia', 'Predicción'], rankingTendenciaRutas.data?.rankingRutas.map(r => [r.ranking, r.ruta.nombre, r.totalIncidentes, formatPercent(r.porcentaje), r.tendencia, r.prediccionProximoMes]) ?? [])" :disabled="!rankingTendenciaRutas.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -868,6 +922,12 @@
 								<analytics-chart v-if="eficienciaCategoriaBarData" type="bar" :data="eficienciaCategoriaBarData" :options="barOptions" :height="320" />
 							</div>
 							<div class="table-card">
+								<div class="table-header">
+									<h4>Detalle</h4>
+									<ion-button fill="clear" size="small" @click="exportToCSV('eficiencia-cierre', ['Ruta', 'Incidentes', 'Resueltos', 'Tasa cierre', 'Tiempo prom. (días)'], eficienciaCierre.data?.eficienciaPorRuta.map(r => [r.ruta.nombre, r.totalIncidentes, r.resueltos, formatPercent(r.tasaCierre), r.tiempoPromedioResolucionDias]) ?? [])" :disabled="!eficienciaCierre.data">
+										<ion-icon :icon="downloadOutline" slot="icon-only" />
+									</ion-button>
+								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
@@ -939,6 +999,7 @@ import {
 	listOutline,
 	checkmarkDoneCircleOutline,
 	settingsOutline,
+	downloadOutline,
 } from 'ionicons/icons';
 import AnalyticsChart from '@/components/AnalyticsChart.vue';
 import KpiCard from '@/components/KpiCard.vue';
@@ -1050,6 +1111,27 @@ const generateProporcionEstados = () => runReport('proporcion-estados', proporci
 const generateEficienciaCierre = () => runReport('eficiencia-cierre', eficienciaCierre);
 
 const formatPercent = (value: number, digits = 1) => `${value.toFixed(digits)}%`;
+
+const exportToCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
+	const csvContent = [
+		headers.join(','),
+		...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+	].join('\n');
+
+	const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+	const link = document.createElement('a');
+	if (link.download !== undefined) {
+		const url = URL.createObjectURL(blob);
+		link.setAttribute('href', url);
+		link.setAttribute('download', `${filename}.csv`);
+		link.style.visibility = 'hidden';
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	}
+};
+
+
 
 // --- CHARTS DATA COMPUTED ---
 const buildDonutDataset = (entries: Array<{ label: string; value: number }>): ChartData<'doughnut'> => ({
@@ -1527,6 +1609,22 @@ watch(activeReportId, (newId) => {
 	border-radius: var(--radius-md);
 	padding: 20px;
 	box-shadow: var(--shadow-sm);
+}
+
+.table-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.table-header h4 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: #0f172a;
 }
 
 .kpi-grid {

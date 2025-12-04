@@ -62,12 +62,27 @@
 							<div class="evidence-gallery" v-if="evidenceImages.length">
 								<h3>Imágenes</h3>
 								<div class="image-grid">
-									<ion-card v-for="(image, index) in evidenceImages" :key="`${image}-${index}`" class="image-card">
-										<ion-img :src="image" :alt="`Evidencia fotográfica ${index + 1}`" loading="lazy" />
-									</ion-card>
+									<ion-card v-for="(image, index) in evidenceImages" :key="`${image}-${index}`" class="image-card" @click="openImageModal(image)">
+											<ion-img :src="image" :alt="`Evidencia fotográfica ${index + 1}`" loading="lazy" />
+										</ion-card>
 								</div>
 							</div>
 							<p v-else class="evidence-placeholder">Sin imágenes registradas.</p>
+
+							<ion-modal :is-open="isImageModalOpen" @didDismiss="closeImageModal" class="image-modal">
+								<ion-header>
+									<ion-toolbar>
+										<ion-buttons slot="end">
+											<ion-button @click="closeImageModal">Cerrar</ion-button>
+										</ion-buttons>
+									</ion-toolbar>
+								</ion-header>
+								<ion-content class="image-modal-content">
+									<div class="full-image-container">
+										<ion-img :src="selectedImage" v-if="selectedImage" />
+									</div>
+								</ion-content>
+							</ion-modal>
 
 							<div class="evidence-audio" v-if="evidenceAudios.length">
 								<h3>Audios</h3>
@@ -122,6 +137,7 @@ import {
 	IonItem,
 	IonLabel,
 	IonList,
+	IonModal,
 	IonPage,
 	IonSpinner,
 	IonTitle,
@@ -132,6 +148,7 @@ import {
 	locationOutline,
 	pricetagOutline,
 	timeOutline,
+	trashOutline,
 } from 'ionicons/icons';
 
 type Nullable<T> = T | null | undefined;
@@ -158,6 +175,18 @@ const { authToken } = useSession();
 const incident = ref<IncidenteResponseDTO | null>(null);
 const isLoading = ref(true);
 const loadError = ref<string | null>(null);
+const isImageModalOpen = ref(false);
+const selectedImage = ref<string | null>(null);
+
+const openImageModal = (image: string) => {
+	selectedImage.value = image;
+	isImageModalOpen.value = true;
+};
+
+const closeImageModal = () => {
+	isImageModalOpen.value = false;
+	selectedImage.value = null;
+};
 
 const sanitizeId = (value: unknown): string | null => {
 	if (typeof value === 'string' && value.trim().length) {
@@ -520,5 +549,37 @@ const evidenceAudios = computed(() => incident.value?.audios ?? []);
 		width: 140px;
 	}
 }
+
+.image-modal {
+	--height: 100%;
+	--width: 100%;
+}
+
+.image-modal-content {
+	--background: #000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.full-image-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.full-image-container ion-img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+
+.image-card-wrapper {
+	position: relative;
+}
+
 </style>
 

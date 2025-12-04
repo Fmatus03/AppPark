@@ -106,13 +106,13 @@
 						<h2>Galería de Fotos</h2>
 					</header>
 					<div v-if="incident.photos.length" class="photo-grid">
-						<div v-for="photo in incident.photos" :key="photo.id ?? photo.url" class="photo-card">
+						<div v-for="photo in incident.photos" :key="photo.id ?? photo.url" class="photo-card" @click="openImageModal(photo.url)">
 							<img :src="photo.url" alt="Foto del incidente" />
 							<button
 								type="button"
 								class="icon-btn danger photo-delete"
-								:disabled="!photo.id || deletingPhotoId === photo.id"
-								@click="deletePhoto(photo.id)"
+								:disabled="deletingPhotoId !== null && deletingPhotoId === photo.id"
+								@click.stop="deletePhoto(photo.id)"
 							>
 								<ion-icon :icon="trashOutline" />
 							</button>
@@ -131,7 +131,7 @@
 							<button
 								type="button"
 								class="icon-btn danger"
-								:disabled="!audio.id || deletingAudioId === audio.id"
+								:disabled="deletingAudioId !== null && deletingAudioId === audio.id"
 								@click="deleteAudio(audio.id)"
 							>
 								<ion-icon :icon="trashOutline" />
@@ -224,25 +224,47 @@
 					<p v-else class="modal-empty">No hay rutas disponibles.</p>
 				</ion-content>
 			</ion-modal>
+			<ion-modal
+				:is-open="isImageModalOpen"
+				@didDismiss="closeImageModal"
+				class="image-modal"
+			>
+				<ion-header>
+					<ion-toolbar>
+						<ion-buttons slot="end">
+							<ion-button @click="closeImageModal">Cerrar</ion-button>
+						</ion-buttons>
+					</ion-toolbar>
+				</ion-header>
+				<ion-content class="image-modal-content">
+					<div class="full-image-container">
+						<ion-img :src="selectedImage" v-if="selectedImage" />
+					</div>
+				</ion-content>
+			</ion-modal>
 		</ion-content>
 	</ion-page>
 </template>
 
-type IncidentAudio = {
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import {
 	IonContent,
 	IonHeader,
 	IonIcon,
+	IonImg,
 	IonItem,
 	IonLabel,
 	IonList,
 	IonModal,
+	IonButtons,
+	IonButton,
 	IonPage,
 	IonSpinner,
 	IonTitle,
 	IonToolbar,
+	alertController,
+	toastController,
 	onIonViewWillEnter,
 } from '@ionic/vue';
 import { createOutline, trashOutline } from 'ionicons/icons';
@@ -311,6 +333,18 @@ const isSaving = ref(false);
 const isDeletingIncident = ref(false);
 const deletingPhotoId = ref<number | null>(null);
 const deletingAudioId = ref<number | null>(null);
+const isImageModalOpen = ref(false);
+const selectedImage = ref<string | null>(null);
+
+const openImageModal = (image: string) => {
+	selectedImage.value = image;
+	isImageModalOpen.value = true;
+};
+
+const closeImageModal = () => {
+	isImageModalOpen.value = false;
+	selectedImage.value = null;
+};
 
 const defaultStates: EstadoIncidente[] = ['ABIERTO', 'EN_REVISION', 'CERRADO'];
 const states = ref<EstadoIncidente[]>([...defaultStates]);
@@ -357,6 +391,22 @@ const extractErrorMessage = (error: unknown) => {
 		);
 	}
 	return 'No fue posible completar la acción solicitada.';
+};
+
+const showToast = async (message: string, color: 'success' | 'danger' | 'warning' = 'success') => {
+	const toast = await toastController.create({
+		message,
+		duration: 3000,
+		color,
+		position: 'bottom',
+		buttons: [
+			{
+				text: 'OK',
+				role: 'cancel',
+			},
+		],
+	});
+	await toast.present();
 };
 
 const normalizeDateInput = (value: string) => {
@@ -576,6 +626,7 @@ const fetchIncidentDetail = async () => {
 		const endpoint = `${apiBaseUrl}/api/admin/incidentes/${incidentId.value}`;
 		const { data } = await axios.get(endpoint, { headers: buildAuthHeaders() });
 		const mapped = mapIncidentDetail(data);
+		console.log(data);
 		incident.value = mapped;
 		populateForm(mapped);
 	} catch (error) {
@@ -685,7 +736,7 @@ const onGuardar = async () => {
 		updates.push(() => updateRoute(nextRouteId));
 	}
 	if (!updates.length) {
-		window.alert('No hay cambios pendientes por guardar.');
+		await showToast('No hay cambios pendientes por guardar.', 'warning');
 		return;
 	}
 	isSaving.value = true;
@@ -694,10 +745,10 @@ const onGuardar = async () => {
 			await action();
 		}
 		await fetchIncidentDetail();
-		window.alert('Cambios guardados correctamente.');
+		await showToast('Cambios guardados correctamente.');
 	} catch (error) {
 		console.error('admin-incident-update-error', error);
-		window.alert(extractErrorMessage(error));
+		await showToast(extractErrorMessage(error), 'danger');
 	} finally {
 		isSaving.value = false;
 	}
@@ -707,30 +758,49 @@ const onEliminar = async () => {
 	if (!incident.value || isDeletingIncident.value) {
 		return;
 	}
-	const confirmed = window.confirm('¿Estás seguro de eliminar este incidente? Esta acción es irreversible.');
-	if (!confirmed) {
-		return;
-	}
-	isDeletingIncident.value = true;
-	try {
-		const endpoint = `${apiBaseUrl}/api/admin/incidentes/${incident.value.id}`;
-		await axios.delete(endpoint, { headers: buildAuthHeaders() });
-		window.alert('Incidente eliminado correctamente.');
-		if (router.hasRoute && router.hasRoute('AdminIncidentManagment')) {
-			router.replace({ name: 'AdminIncidentManagment' });
-		} else {
-			router.replace('/');
-		}
-	} catch (error) {
-		console.error('admin-incident-delete-error', error);
-		window.alert(extractErrorMessage(error));
-	} finally {
-		isDeletingIncident.value = false;
-	}
+
+	const alert = await alertController.create({
+		header: 'Confirmar eliminación',
+		message: '¿Estás seguro de eliminar este incidente? Esta acción es irreversible.',
+		buttons: [
+			{
+				text: 'Cancelar',
+				role: 'cancel',
+			},
+			{
+				text: 'Eliminar',
+				role: 'confirm',
+				handler: async () => {
+					isDeletingIncident.value = true;
+					try {
+						const endpoint = `${apiBaseUrl}/api/admin/incidentes/${incident.value!.id}`;
+						await axios.delete(endpoint, { headers: buildAuthHeaders() });
+						await showToast('Incidente eliminado correctamente.');
+						if (router.hasRoute && router.hasRoute('AdminIncidentManagment')) {
+							router.replace({ name: 'AdminIncidentManagment' });
+						} else {
+							router.replace('/');
+						}
+					} catch (error) {
+						console.error('admin-incident-delete-error', error);
+						await showToast(extractErrorMessage(error), 'danger');
+					} finally {
+						isDeletingIncident.value = false;
+					}
+				},
+			},
+		],
+	});
+
+	await alert.present();
 };
 
 const deletePhoto = async (photoId: number | null) => {
-	if (!photoId || deletingPhotoId.value === photoId) {
+	if (!photoId) {
+		await showToast('No se puede eliminar la foto.', 'warning');
+		return;
+	}
+	if (deletingPhotoId.value === photoId) {
 		return;
 	}
 	deletingPhotoId.value = photoId;
@@ -740,16 +810,21 @@ const deletePhoto = async (photoId: number | null) => {
 		if (incident.value) {
 			incident.value.photos = incident.value.photos.filter((photo) => photo.id !== photoId);
 		}
+		await showToast('Foto eliminada correctamente.');
 	} catch (error) {
 		console.error('admin-photo-delete-error', error);
-		window.alert(extractErrorMessage(error));
+		await showToast(extractErrorMessage(error), 'danger');
 	} finally {
 		deletingPhotoId.value = null;
 	}
 };
 
 const deleteAudio = async (audioId: number | null) => {
-	if (!audioId || deletingAudioId.value === audioId) {
+	if (!audioId) {
+		await showToast('No se puede eliminar el audio.', 'warning');
+		return;
+	}
+	if (deletingAudioId.value === audioId) {
 		return;
 	}
 	deletingAudioId.value = audioId;
@@ -759,9 +834,10 @@ const deleteAudio = async (audioId: number | null) => {
 		if (incident.value) {
 			incident.value.audios = incident.value.audios.filter((audio) => audio.id !== audioId);
 		}
+		await showToast('Audio eliminado correctamente.');
 	} catch (error) {
 		console.error('admin-audio-delete-error', error);
-		window.alert(extractErrorMessage(error));
+		await showToast(extractErrorMessage(error), 'danger');
 	} finally {
 		deletingAudioId.value = null;
 	}
@@ -795,6 +871,32 @@ const deleteAudio = async (audioId: number | null) => {
 .loading-state ion-spinner {
 	width: 54px;
 	height: 54px;
+}
+
+.image-modal {
+	--height: 100%;
+	--width: 100%;
+}
+
+.image-modal-content {
+	--background: #000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.full-image-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.full-image-container ion-img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
 }
 
 .error-state {

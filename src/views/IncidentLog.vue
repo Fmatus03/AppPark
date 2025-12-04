@@ -64,12 +64,12 @@
 					<div class="chip-row">
 						<ion-chip
 							v-for="category in categories"
-							:key="category"
+							:key="category.id"
 							class="category-chip"
-							:class="{ active: selectedCategory === category }"
+							:class="{ active: selectedCategory?.id === category.id }"
 							@click="selectCategory(category)"
 						>
-							{{ category }}
+							{{ category.nombre }}
 						</ion-chip>
 					</div>
 				</section>
@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import {
 	IonButton,
 	IonContent,
@@ -214,19 +214,18 @@ import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
 import { HTTP } from '@awesome-cordova-plugins/http';
 import { useSession } from '@/composables/useSession';
-import { isAndroidNativeApp, parseFetchResponse, throwFetchError } from '@/utils/httpHelpers';
+import { isAndroidNativeApp, parseFetchResponse, throwFetchError, parseNativeResponse } from '@/utils/httpHelpers';
+import { toastController } from '@ionic/vue';
 
-type Category = 'Infraestructura' | 'Seguridad' | 'Servicios publicos';
+interface Category {
+	id: number;
+	nombre: string;
+}
 
 const incidentTitle = ref('');
 const incidentDescription = ref('');
 const selectedCategory = ref<Category | null>(null);
-const categories: Category[] = ['Infraestructura', 'Seguridad', 'Servicios publicos'];
-const categoryIds: Record<Category, number> = {
-	Infraestructura: 1,
-	Seguridad: 2,
-	'Servicios publicos': 3,
-};
+const categories = ref<Category[]>([]);
 const evidencePhotos = ref<Photo[]>([]);
 const isCapturing = ref(false);
 const audioEvidence = ref<AudioEvidence[]>([]);
@@ -238,6 +237,7 @@ const router = useRouter();
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
 const { authToken } = useSession();
+const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
 const clearTitle = () => {
 	incidentTitle.value = '';
@@ -254,6 +254,38 @@ const selectCategory = (category: Category) => {
 const goToHome = () => {
 	router.push('/home');
 };
+
+const fetchCategories = async () => {
+	if (!apiBaseUrl || !authToken.value) return;
+
+	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes/categorias`;
+	const headers = {
+		Accept: 'application/json',
+		Authorization: `Bearer ${authToken.value}`,
+	};
+
+	try {
+		if (isAndroidNativeApp()) {
+			const response = await HTTP.get(endpoint, {}, headers);
+			if (response.status >= 200 && response.status < 300) {
+				categories.value = parseNativeResponse<Category[]>(response.data) || [];
+			}
+		} else {
+			const response = await fetch(endpoint, { headers });
+			if (response.ok) {
+				categories.value = await response.json();
+			} else {
+				console.error('Error fetching categories:', response.statusText);
+			}
+		}
+	} catch (error) {
+		console.error('Error fetching categories:', error);
+	}
+};
+
+onMounted(() => {
+	fetchCategories();
+});
 
 const addEvidencePhoto = (photo: Photo) => {
 	evidencePhotos.value = [...evidencePhotos.value, photo];
@@ -296,16 +328,16 @@ const ensureAudioPermission = async () => {
 };
 
 const photoSrc = (photo: Photo) => {
+	if (photo.base64String) {
+		return `data:image/${photo.format};base64,${photo.base64String}`;
+	}
+
 	if (photo.webPath) {
 		return photo.webPath;
 	}
 
 	if (photo.path) {
 		return Capacitor.convertFileSrc(photo.path);
-	}
-
-	if (photo.base64String) {
-		return `data:image/jpeg;base64,${photo.base64String}`;
 	}
 
 	return '';
@@ -317,7 +349,7 @@ const capturePhoto = async () => {
 		const result = await Camera.getPhoto({
 			quality: 85,
 			allowEditing: false,
-			resultType: CameraResultType.Uri,
+			resultType: CameraResultType.Base64,
 			source: CameraSource.Camera,
 			saveToGallery: false,
 		});
@@ -336,7 +368,7 @@ const pickFromGallery = async () => {
 		const result = await Camera.getPhoto({
 			quality: 85,
 			allowEditing: false,
-			resultType: CameraResultType.Uri,
+			resultType: CameraResultType.Base64,
 			source: CameraSource.Photos,
 			saveToGallery: false,
 		});
@@ -498,15 +530,22 @@ const ensureWebAccessiblePath = (path?: string | null) => {
 	return path;
 };
 
+import { Filesystem, Directory } from '@capacitor/filesystem';
+
 const photoToBlob = async (photo: Photo) => {
+	if (photo.base64String) {
+		return base64ToBlob(photo.base64String, `image/${photo.format}`);
+	}
+
+	// Fallback for Web or if base64 is missing (should not happen with CameraResultType.Base64)
 	const sourceUrl = photo.webPath ?? ensureWebAccessiblePath(photo.path);
 	if (!sourceUrl) {
-		throw new Error('No se encontró la ruta de la foto.');
+		throw new Error('No se encontró la imagen.');
 	}
 
 	const response = await fetch(sourceUrl);
 	if (!response.ok) {
-		throw new Error('No se pudo leer la foto seleccionada.');
+		throw new Error('No se pudo procesar la imagen.');
 	}
 
 	return response.blob();
@@ -653,22 +692,13 @@ const submitIncident = async () => {
 		return;
 	}
 
-	const categoryId = categoryIds[selectedCategory.value];
-
-	if (!categoryId) {
-		console.warn('incidente-submit', { error: 'unknown-category', category: selectedCategory.value });
-		return;
-	}
-
 	const incidentData = {
 		titulo: incidentTitle.value.trim(),
 		descripcion: incidentDescription.value.trim(),
 		latitud: latitude.value ?? 0,
 		longitud: longitude.value ?? 0,
-		categoriaId: categoryId,
+		categoriaId: selectedCategory.value.id,
 	};
-
-	const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
 	if (!apiBaseUrl) {
 		console.error('incidente-submit', { error: 'missing-api-base-url' });
@@ -698,6 +728,16 @@ const submitIncident = async () => {
 		}
 
 		console.info('incidente-submit-success');
+		
+		const toast = await toastController.create({
+			message: '¡Incidente enviado correctamente!',
+			duration: 3000,
+			color: 'success',
+			position: 'bottom',
+			buttons: [{ text: 'OK', role: 'cancel' }],
+		});
+		await toast.present();
+
 		// Clear form so inputs, images and audios are reset
 		resetForm();
 		router.push({ name: 'Home' });
@@ -777,9 +817,9 @@ ion-input::part(label) {
 }
 
 .category-chip.active {
-	--background: var(--ion-color-success, #2dd36f);
+	--background: var(--ion-color-primary, #3880ff);
 	--color: #ffffff;
-	border-color: rgba(45, 211, 111, 0.65);
+	border-color: var(--ion-color-primary, #3880ff);
 }
 
 
