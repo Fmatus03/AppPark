@@ -1,2 +1,136 @@
-/* For information on how to create your own theme, please see:
-http://ionicframework.com/docs/theming/ */
+/* Global Design System - Strict Light Mode */
+:root {
+	/* Brand Colors - Blue 600 */
+	--ion-color-primary: #2563eb;
+	--ion-color-primary-rgb: 37, 99, 235;
+	--ion-color-primary-contrast: #ffffff;
+	--ion-color-primary-contrast-rgb: 255, 255, 255;
+	--ion-color-primary-shade: #2056ce;
+	--ion-color-primary-tint: #3b73ed;
+
+	/* Neutral Colors - Slate */
+	--ion-text-color: #0f172a;
+	--ion-text-color-rgb: 15, 23, 42;
+	--ion-text-secondary: #64748b;
+
+	/* Backgrounds */
+	--ion-background-color: #f8fafc;
+	--ion-card-background: #ffffff;
+	--ion-item-background: #ffffff;
+	--ion-toolbar-background: #ffffff;
+	--ion-toolbar-padding-top: 12px;
+	--ion-toolbar-padding-bottom: 12px;
+
+	/* Custom Design Tokens */
+	--page-bg: #f8fafc;
+	--card-bg: #ffffff;
+	--border-color: #e2e8f0;
+
+	/* Radius */
+	--radius-lg: 16px;
+	--radius-md: 12px;
+	--radius-sm: 8px;
+
+	/* Shadows */
+	--shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+	/* Typography */
+	--font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+	font-family: var(--font-family-base);
+	background-color: var(--ion-background-color);
+	color: var(--ion-text-color);
+}
+
+/* Force Light Mode - Override System Dark Mode Preferences */
+@media (prefers-color-scheme: dark) {
+	:root {
+		/* Re-declare light mode variables to override any Ionic defaults */
+		--ion-background-color: #f8fafc;
+		--ion-text-color: #0f172a;
+		--ion-item-background: #ffffff;
+		--ion-item-color: #0f172a;
+		--ion-toolbar-background: #ffffff;
+		--ion-card-background: #ffffff;
+
+		/* Ensure custom tokens are also light */
+		--page-bg: #f8fafc;
+		--card-bg: #ffffff;
+		--border-color: #e2e8f0;
+	}
+
+	body {
+		background-color: #f8fafc;
+		color: #0f172a;
+	}
+
+	/* Aggressive overrides for Ionic components in Dark Mode */
+	ion-item {
+		--background: #ffffff;
+		--color: #0f172a;
+	}
+
+	ion-list {
+		--ion-item-background: #ffffff;
+		background: transparent;
+	}
+
+	ion-input,
+	ion-textarea,
+	ion-select {
+		--color: #0f172a;
+		--placeholder-color: #64748b;
+	}
+
+	ion-checkbox {
+		--checkbox-background: #ffffff;
+		--checkbox-background-checked: #2563eb;
+		--border-color: #e2e8f0;
+	}
+
+	/* Aggressive Header/Toolbar Overrides */
+	ion-header,
+	ion-toolbar {
+		--background: #ffffff;
+		--color: #0f172a;
+		color: #0f172a;
+	}
+
+	/* Aggressive Card Overrides */
+	ion-card {
+		--background: #ffffff;
+		--color: #0f172a;
+		color: #0f172a;
+	}
+
+	/* Aggressive Datetime Overrides */
+	ion-datetime {
+		--background: #ffffff;
+		--background-rgb: 255, 255, 255;
+		--ion-color-step-100: #f1f5f9;
+		--ion-color-step-150: #e2e8f0;
+		--ion-text-color: #0f172a;
+		color: #0f172a;
+	}
+
+	/* Popover content (where datetime often lives) */
+	ion-popover {
+		--background: #ffffff;
+		--color: #0f172a;
+	}
+
+	ion-content {
+		--background: #f8fafc;
+		--color: #0f172a;
+	}
+}
+
+/* Global Toolbar Height Increase */
+ion-toolbar {
+	--min-height: 70px;
+	--padding-top: 8px;
+	--padding-bottom: 8px;
+}

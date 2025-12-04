@@ -1,0 +1,963 @@
+<template>
+	<IonPage>
+		<IonHeader translucent>
+			<IonToolbar class="page-toolbar">
+				<IonButtons slot="start">
+					<ion-button class="header-back-button" fill="clear" @click="goToHome" aria-label="Volver a inicio">
+						<ion-icon slot="icon-only" :icon="arrowBackOutline" aria-hidden="true" />
+					</ion-button>
+				</IonButtons>
+				<IonTitle class="page-title">Nuevo Incidente</IonTitle>
+				<div slot="end" class="toolbar-spacer"></div>
+			</IonToolbar>
+		</IonHeader>
+
+		<IonContent fullscreen class="form-content">
+			<div class="form-card">
+				<!-- Información general -->
+				<ion-input
+					v-model="incidentTitle"
+					label="Título del incidente"
+					label-placement="stacked"
+					placeholder="Ingresa un título"
+					type="text"
+					autocomplete="off"
+					inputmode="text"
+				>
+					<ion-icon slot="start" :icon="documentTextOutline" aria-hidden="true" />
+					<ion-button
+						v-show="incidentTitle.length > 0"
+						fill="clear"
+						slot="end"
+						type="button"
+						@click="clearTitle"
+						aria-label="Limpiar título"
+					>
+						<ion-icon slot="icon-only" :icon="closeCircle" aria-hidden="true" />
+					</ion-button>
+				</ion-input>
+
+				<ion-input
+					v-model="incidentDescription"
+					label="Descripción del incidente"
+					label-placement="stacked"
+					placeholder="Describe lo sucedido"
+					type="text"
+					autocomplete="off"
+					inputmode="text"
+				>
+					<ion-icon slot="start" :icon="chatboxEllipsesOutline" aria-hidden="true" />
+					<ion-button
+						v-show="incidentDescription.length > 0"
+						fill="clear"
+						slot="end"
+						type="button"
+						@click="clearDescription"
+						aria-label="Limpiar descripción"
+					>
+						<ion-icon slot="icon-only" :icon="closeCircle" aria-hidden="true" />
+					</ion-button>
+				</ion-input>
+
+				<section class="category-section">
+					<h2 class="section-title">Categoría</h2>
+					<div class="chip-row">
+						<ion-chip
+							v-for="category in categories"
+							:key="category.id"
+							class="category-chip"
+							:class="{ active: selectedCategory?.id === category.id }"
+							@click="selectCategory(category)"
+						>
+							{{ category.nombre }}
+						</ion-chip>
+					</div>
+				</section>
+
+				<section class="evidence-section">
+					<h2 class="section-title">Evidencia</h2>
+					<div class="evidence-columns">
+						<div class="evidence-block">
+							<h3 class="evidence-subtitle">Imágenes</h3>
+							<div class="evidence-actions">
+								<ion-button expand="block" :disabled="isCapturing" @click="capturePhoto">
+									<ion-icon slot="start" :icon="cameraOutline" aria-hidden="true" />
+									Tomar foto
+								</ion-button>
+								<ion-button expand="block" fill="outline" :disabled="isCapturing" @click="pickFromGallery">
+									<ion-icon slot="start" :icon="imageOutline" aria-hidden="true" />
+									Elegir de la galería
+								</ion-button>
+							</div>
+
+							<p v-if="!evidencePhotos.length" class="evidence-placeholder">
+								Aún no has añadido evidencia fotográfica.
+							</p>
+							<div v-else class="photos-grid">
+								<div
+									v-for="(photo, index) in evidencePhotos"
+									:key="photo.webPath ?? photo.path ?? index"
+									class="photo-item"
+								>
+									<ion-img
+										:src="photoSrc(photo)"
+										alt="Evidencia del incidente"
+										loading="lazy"
+									/>
+									<ion-button
+										class="remove-photo-btn"
+										fill="solid"
+										color="danger"
+										size="small"
+										type="button"
+										@click="removePhoto(index)"
+										aria-label="Quitar imagen"
+									>
+										<ion-icon slot="icon-only" :icon="trashOutline" aria-hidden="true" />
+									</ion-button>
+								</div>
+							</div>
+						</div>
+
+						<div class="evidence-block">
+							<h3 class="evidence-subtitle">Audio</h3>
+							<div class="audio-controls">
+								<ion-button
+									expand="block"
+									:class="['record-button', { 'is-recording': isRecordingAudio }]"
+									:color="isRecordingAudio ? 'danger' : 'primary'"
+									:disabled="isProcessingAudio"
+									:aria-pressed="isRecordingAudio"
+									@mousedown.prevent="handleRecordButtonDown"
+									@mouseup.prevent="handleRecordButtonUp"
+									@mouseleave="handleRecordButtonCancel"
+									@touchstart.prevent="handleRecordButtonDown"
+									@touchend.prevent="handleRecordButtonUp"
+									@touchcancel.prevent="handleRecordButtonCancel"
+								>
+									<ion-icon
+										slot="start"
+										:icon="isRecordingAudio ? stopCircleOutline : micOutline"
+										aria-hidden="true"
+									/>
+									{{ isRecordingAudio ? 'Suelta para guardar' : 'Mantén presionado para grabar' }}
+								</ion-button>
+								<p class="recording-hint" role="status">
+									{{ isRecordingAudio ? 'Grabando… suelta para finalizar.' : 'Mantén presionado para grabar audio.' }}
+								</p>
+							</div>
+
+							<p v-if="!audioEvidence.length" class="evidence-placeholder">
+								Aún no has añadido grabaciones de audio.
+							</p>
+							<ion-list v-else lines="none" class="audio-list">
+								<ion-item v-for="audio in audioEvidence" :key="audio.id" class="audio-item">
+									<audio :src="audio.dataUrl" controls preload="metadata"></audio>
+									<ion-button slot="end" fill="clear" color="danger" @click="removeAudioEvidence(audio.id)">
+										<ion-icon slot="icon-only" :icon="trashOutline" aria-hidden="true" />
+									</ion-button>
+								</ion-item>
+							</ion-list>
+						</div>
+					</div>
+				</section>
+
+				<ion-button
+					expand="block"
+					class="submit-button"
+					color="primary"
+					size="large"
+					@click="submitIncident"
+				>
+					Enviar incidente
+				</ion-button>
+				<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
+					Espacio reservado
+				</ion-chip>
+			</div>
+		</IonContent>
+	</IonPage>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import {
+	IonButton,
+	IonContent,
+	IonHeader,
+	IonIcon,
+	IonInput,
+	IonPage,
+	IonTitle,
+	IonToolbar,
+	IonChip,
+	IonImg,
+	IonList,
+	IonItem,
+	IonButtons,
+} from '@ionic/vue';
+import {
+	documentTextOutline,
+	chatboxEllipsesOutline,
+	closeCircle,
+	cameraOutline,
+	imageOutline,
+	micOutline,
+	stopCircleOutline,
+	trashOutline,
+	arrowBackOutline,
+} from 'ionicons/icons';
+import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
+import { VoiceRecorder } from 'capacitor-voice-recorder';
+import { useRouter } from 'vue-router';
+import { Geolocation } from '@capacitor/geolocation';
+import { HTTP } from '@awesome-cordova-plugins/http';
+import { useSession } from '@/composables/useSession';
+import { isAndroidNativeApp, parseFetchResponse, throwFetchError, parseNativeResponse } from '@/utils/httpHelpers';
+import { toastController } from '@ionic/vue';
+
+interface Category {
+	id: number;
+	nombre: string;
+}
+
+const incidentTitle = ref('');
+const incidentDescription = ref('');
+const selectedCategory = ref<Category | null>(null);
+const categories = ref<Category[]>([]);
+const evidencePhotos = ref<Photo[]>([]);
+const isCapturing = ref(false);
+const audioEvidence = ref<AudioEvidence[]>([]);
+const isRecordingAudio = ref(false);
+const isProcessingAudio = ref(false);
+const isRecordGestureActive = ref(false);
+const audioPermissionGranted = ref<boolean | null>(null);
+const router = useRouter();
+const latitude = ref<number | null>(null);
+const longitude = ref<number | null>(null);
+const { authToken } = useSession();
+const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+
+const clearTitle = () => {
+	incidentTitle.value = '';
+};
+
+const clearDescription = () => {
+	incidentDescription.value = '';
+};
+
+const selectCategory = (category: Category) => {
+	selectedCategory.value = category;
+};
+
+const goToHome = () => {
+	router.push('/home');
+};
+
+const fetchCategories = async () => {
+	if (!apiBaseUrl || !authToken.value) return;
+
+	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes/categorias`;
+	const headers = {
+		Accept: 'application/json',
+		Authorization: `Bearer ${authToken.value}`,
+	};
+
+	try {
+		if (isAndroidNativeApp()) {
+			const response = await HTTP.get(endpoint, {}, headers);
+			if (response.status >= 200 && response.status < 300) {
+				categories.value = parseNativeResponse<Category[]>(response.data) || [];
+			}
+		} else {
+			const response = await fetch(endpoint, { headers });
+			if (response.ok) {
+				categories.value = await response.json();
+			} else {
+				console.error('Error fetching categories:', response.statusText);
+			}
+		}
+	} catch (error) {
+		console.error('Error fetching categories:', error);
+	}
+};
+
+onMounted(() => {
+	fetchCategories();
+});
+
+const addEvidencePhoto = (photo: Photo) => {
+	evidencePhotos.value = [...evidencePhotos.value, photo];
+};
+
+const removePhoto = (index: number) => {
+	evidencePhotos.value = evidencePhotos.value.filter((_, idx) => idx !== index);
+};
+
+type AudioEvidence = {
+	id: number;
+	dataUrl: string;
+	createdAt: string;
+	durationMs?: number;
+	name: string;
+	mimeType?: string | null;
+	base64?: string | null;
+	path?: string | null;
+};
+
+const ensureAudioPermission = async () => {
+	if (audioPermissionGranted.value) {
+		return true;
+	}
+
+	try {
+		const hasPermission = await VoiceRecorder.hasAudioRecordingPermission();
+		audioPermissionGranted.value = hasPermission.value;
+		if (hasPermission.value) {
+			return true;
+		}
+
+		const request = await VoiceRecorder.requestAudioRecordingPermission();
+		audioPermissionGranted.value = request.value;
+		return request.value;
+	} catch (error) {
+		console.error('No se pudo verificar el permiso de audio', error);
+		return false;
+	}
+};
+
+const photoSrc = (photo: Photo) => {
+	if (photo.base64String) {
+		return `data:image/${photo.format};base64,${photo.base64String}`;
+	}
+
+	if (photo.webPath) {
+		return photo.webPath;
+	}
+
+	if (photo.path) {
+		return Capacitor.convertFileSrc(photo.path);
+	}
+
+	return '';
+};
+
+const capturePhoto = async () => {
+	isCapturing.value = true;
+	try {
+		const result = await Camera.getPhoto({
+			quality: 85,
+			allowEditing: false,
+			resultType: CameraResultType.Base64,
+			source: CameraSource.Camera,
+			saveToGallery: false,
+		});
+		addEvidencePhoto(result);
+	} catch (error) {
+		if ((error as Error)?.message !== 'User cancelled photos app') {
+			console.error('No se pudo tomar la foto', error);
+		}
+	} finally {
+		isCapturing.value = false;
+	}
+};
+
+const pickFromGallery = async () => {
+	try {
+		const result = await Camera.getPhoto({
+			quality: 85,
+			allowEditing: false,
+			resultType: CameraResultType.Base64,
+			source: CameraSource.Photos,
+			saveToGallery: false,
+		});
+		addEvidencePhoto(result);
+	} catch (error) {
+		if ((error as Error)?.message !== 'User cancelled photos app') {
+			console.error('No se pudo seleccionar la imagen', error);
+		}
+	}
+};
+
+const startAudioRecording = async () => {
+	if (isRecordingAudio.value || isProcessingAudio.value) {
+		return;
+	}
+
+	const hasPermission = await ensureAudioPermission();
+	if (!hasPermission) {
+		console.warn('Permiso de micrófono rechazado');
+		return;
+	}
+
+	try {
+		isProcessingAudio.value = true;
+		const response = await VoiceRecorder.startRecording();
+		if (response.value) {
+			isRecordingAudio.value = true;
+		}
+	} catch (error) {
+		console.error('No se pudo iniciar la grabación de audio', error);
+	} finally {
+		isProcessingAudio.value = false;
+	}
+};
+
+const stopAudioRecording = async () => {
+	if (!isRecordingAudio.value) {
+		return;
+	}
+
+	try {
+		isProcessingAudio.value = true;
+		const { value } = await VoiceRecorder.stopRecording();
+		if (value) {
+			const dataUrl = buildAudioDataUrl(value.recordDataBase64, value.mimeType, value.path);
+			if (dataUrl) {
+				audioEvidence.value = [
+					...audioEvidence.value,
+					{
+						id: Date.now(),
+						dataUrl,
+						createdAt: new Date().toLocaleString(),
+						durationMs: value.msDuration,
+						name: `Audio ${audioEvidence.value.length + 1}`,
+						mimeType: value.mimeType ?? 'audio/aac',
+						base64: value.recordDataBase64 ?? null,
+						path: value.path ?? null,
+					},
+				];
+			}
+		}
+	} catch (error) {
+		console.error('No se pudo detener la grabación de audio', error);
+	} finally {
+		isRecordingAudio.value = false;
+		isProcessingAudio.value = false;
+	}
+};
+
+const buildAudioDataUrl = (base64?: string | null, mimeType?: string | null, path?: string | null) => {
+	if (base64 && base64.trim().length > 0) {
+		const type = mimeType || 'audio/aac';
+		return `data:${type};base64,${base64}`;
+	}
+
+	if (path) {
+		return Capacitor.convertFileSrc(path);
+	}
+
+	return null;
+};
+
+const removeAudioEvidence = (id: number) => {
+	audioEvidence.value = audioEvidence.value.filter((entry) => entry.id !== id);
+};
+
+const handleRecordButtonDown = async () => {
+	if (isRecordGestureActive.value || isProcessingAudio.value) {
+		return;
+	}
+
+	isRecordGestureActive.value = true;
+
+	try {
+		await startAudioRecording();
+	} finally {
+		if (!isRecordingAudio.value) {
+			isRecordGestureActive.value = false;
+		}
+	}
+};
+
+const finalizeRecordingGesture = async () => {
+	if (!isRecordGestureActive.value) {
+		return;
+	}
+
+	isRecordGestureActive.value = false;
+
+	if (!isRecordingAudio.value || isProcessingAudio.value) {
+		return;
+	}
+
+	await stopAudioRecording();
+};
+
+const handleRecordButtonUp = async () => {
+	await finalizeRecordingGesture();
+};
+
+const handleRecordButtonCancel = async () => {
+	await finalizeRecordingGesture();
+};
+
+const getAudioExtension = (mime?: string | null) => {
+	if (!mime) {
+		return 'aac';
+	}
+
+	const [, subtype] = mime.split('/');
+	return subtype ? subtype.replace('+', '') : 'aac';
+};
+
+const base64ToBlob = (base64: string, mimeType: string) => {
+	const byteCharacters = atob(base64);
+	const blobParts: BlobPart[] = [];
+
+	for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
+		const slice = byteCharacters.slice(offset, offset + 1024);
+		const byteNumbers = new Array(slice.length);
+		for (let i = 0; i < slice.length; i += 1) {
+			byteNumbers[i] = slice.charCodeAt(i);
+		}
+		blobParts.push(new Uint8Array(byteNumbers));
+	}
+
+	return new Blob(blobParts, { type: mimeType });
+};
+
+const ensureWebAccessiblePath = (path?: string | null) => {
+	if (!path) {
+		return null;
+	}
+
+	if (path.startsWith('file://') || path.startsWith('content://')) {
+		return Capacitor.convertFileSrc(path);
+	}
+
+	return path;
+};
+
+import { Filesystem, Directory } from '@capacitor/filesystem';
+
+const photoToBlob = async (photo: Photo) => {
+	if (photo.base64String) {
+		return base64ToBlob(photo.base64String, `image/${photo.format}`);
+	}
+
+	// Fallback for Web or if base64 is missing (should not happen with CameraResultType.Base64)
+	const sourceUrl = photo.webPath ?? ensureWebAccessiblePath(photo.path);
+	if (!sourceUrl) {
+		throw new Error('No se encontró la imagen.');
+	}
+
+	const response = await fetch(sourceUrl);
+	if (!response.ok) {
+		throw new Error('No se pudo procesar la imagen.');
+	}
+
+	return response.blob();
+};
+
+const audioToBlob = async (audio: AudioEvidence) => {
+	if (audio.base64) {
+		return base64ToBlob(audio.base64, audio.mimeType ?? 'audio/aac');
+	}
+
+	if (audio.dataUrl?.startsWith('data:')) {
+		const [, payload] = audio.dataUrl.split(',');
+		if (payload) {
+			return base64ToBlob(payload, audio.mimeType ?? 'audio/aac');
+		}
+	}
+
+	const webPath = ensureWebAccessiblePath(audio.path ?? undefined);
+	if (!webPath) {
+		throw new Error('No se encontró la ruta del audio.');
+	}
+
+	const response = await fetch(webPath);
+	if (!response.ok) {
+		throw new Error('No se pudo leer el archivo de audio.');
+	}
+
+	return response.blob();
+};
+
+
+const createFormData = (usePonyfill: boolean) => {
+	if (usePonyfill) {
+		const ponyfills = (HTTP as unknown as { ponyfills?: { FormData?: new () => FormData } }).ponyfills;
+		if (ponyfills?.FormData) {
+			// Ensure compatibility with older Android WebViews lacking FormData.entries support.
+			return new ponyfills.FormData() as unknown as FormData;
+		}
+	}
+	return new FormData();
+};
+
+const buildIncidentFormData = async (
+	incidentData: Record<string, unknown>,
+	usePonyfill = false
+) => {
+	const formData = createFormData(usePonyfill);
+	formData.append(
+		'incidente',
+		new Blob([JSON.stringify(incidentData)], { type: 'application/json' })
+	);
+
+	await Promise.all(
+		evidencePhotos.value.map(async (photo, index) => {
+			const blob = await photoToBlob(photo);
+			const mimeType = blob.type || 'image/jpeg';
+			const [, subtype] = mimeType.split('/');
+			const extension = subtype ? subtype.replace('+', '') : 'jpg';
+			formData.append('fotos', blob, `foto-${index + 1}.${extension}`);
+		})
+	);
+
+	await Promise.all(
+		audioEvidence.value.map(async (audio, index) => {
+			const blob = await audioToBlob(audio);
+			formData.append('audios', blob, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
+		})
+	);
+
+	return formData;
+};
+
+const resetForm = () => {
+	incidentTitle.value = '';
+	incidentDescription.value = '';
+	selectedCategory.value = null;
+	evidencePhotos.value = [];
+	audioEvidence.value = [];
+	latitude.value = null;
+	longitude.value = null;
+	isCapturing.value = false;
+	isRecordingAudio.value = false;
+	isProcessingAudio.value = false;
+	isRecordGestureActive.value = false;
+};
+
+const uploadIncidentNative = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const formData = await buildIncidentFormData(incidentData, true);
+	const resp = await HTTP.sendRequest(endpoint, {
+		method: 'post',
+		serializer: 'multipart',
+		headers,
+		data: formData as unknown as Record<string, unknown>,
+		responseType: 'text',
+	});
+	const status = resp?.status ?? -1;
+	const data = resp?.data ?? resp?.error ?? null;
+	if (status < 200 || status >= 300) {
+		throw { status, data };
+	}
+};
+
+const uploadIncidentWeb = async (
+	endpoint: string,
+	headers: Record<string, string>,
+	incidentData: Record<string, unknown>
+) => {
+	const formData = await buildIncidentFormData(incidentData);
+
+	const response = await fetch(endpoint, {
+		method: 'POST',
+		body: formData,
+		headers,
+	});
+
+	if (!response.ok) {
+		await throwFetchError(response);
+	}
+
+	await parseFetchResponse(response);
+};
+
+const submitIncident = async () => {
+	if (!selectedCategory.value) {
+		console.warn('incidente-submit', { error: 'missing-category' });
+		return;
+	}
+
+	if (!incidentTitle.value || !incidentDescription.value) {
+		console.warn('incidente-submit', { error: 'missing-fields' });
+		return;
+	}
+
+	try {
+		const { coords } = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+		latitude.value = coords.latitude;
+		longitude.value = coords.longitude;
+	} catch (error) {
+		console.error('No se pudo obtener la ubicación del dispositivo', error);
+		return;
+	}
+
+	const incidentData = {
+		titulo: incidentTitle.value.trim(),
+		descripcion: incidentDescription.value.trim(),
+		latitud: latitude.value ?? 0,
+		longitud: longitude.value ?? 0,
+		categoriaId: selectedCategory.value.id,
+	};
+
+	if (!apiBaseUrl) {
+		console.error('incidente-submit', { error: 'missing-api-base-url' });
+		return;
+	}
+
+	const token = authToken.value;
+
+	if (!token) {
+		console.error('incidente-submit', { error: 'missing-auth-token' });
+		return;
+	}
+
+	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes`;
+	const headers: Record<string, string> = {
+		Accept: 'application/json',
+		Authorization: `Bearer ${token}`,
+	};
+
+	console.info('incidente-submit', JSON.stringify(incidentData, null, 2));
+
+	try {
+		if (isAndroidNativeApp()) {
+			await uploadIncidentNative(endpoint, headers, incidentData);
+		} else {
+			await uploadIncidentWeb(endpoint, headers, incidentData);
+		}
+
+		console.info('incidente-submit-success');
+		
+		const toast = await toastController.create({
+			message: '¡Incidente enviado correctamente!',
+			duration: 3000,
+			color: 'success',
+			position: 'bottom',
+			buttons: [{ text: 'OK', role: 'cancel' }],
+		});
+		await toast.present();
+
+		// Clear form so inputs, images and audios are reset
+		resetForm();
+		router.push({ name: 'Home' });
+	} catch (error) {
+		const status = (error as { status?: number })?.status;
+		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
+		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
+	}
+};
+</script>
+
+<style scoped>
+.page-title {
+	width: 100%;
+	text-align: center;
+}
+
+.page-toolbar {
+	--padding-start: 0.75rem;
+	--padding-end: 0.75rem;
+}
+
+.toolbar-spacer {
+	width: 44px;
+	height: 44px;
+}
+
+.form-content {
+	--background: var(--ion-color-light, #f4f6fb);
+	display: flex;
+	justify-content: center;
+}
+
+.form-card {
+	width: min(480px, 100%);
+	padding: 1.5rem 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+.section-title {
+	margin: 0 0 0.75rem;
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--ion-color-dark, #1f2933);
+}
+
+.header-back-button {
+	--padding-start: 0.25rem;
+	--padding-end: 0.25rem;
+	--border-radius: 999px;
+	--color: var(--ion-color-dark, #1f2933);
+}
+
+.header-back-button ion-icon {
+	font-size: 1.35rem;
+}
+
+.chip-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+ion-input::part(label) {
+	font-weight: 600;
+}
+
+.category-chip {
+	--background: transparent;
+	--color: var(--ion-color-medium, #6b7280);
+	border: 1px solid rgba(107, 114, 128, 0.35);
+	border-radius: 999px;
+	padding-inline: 0.75rem;
+	transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.category-chip.active {
+	--background: var(--ion-color-primary, #3880ff);
+	--color: #ffffff;
+	border-color: var(--ion-color-primary, #3880ff);
+}
+
+
+.safe-area-spacer {
+	opacity: 0;
+	width: 100%;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+}
+
+:global(.has-mobile-navbar) .safe-area-spacer {
+	min-height: calc(env(safe-area-inset-bottom, 0) + 4.75rem);
+}
+
+
+.evidence-section {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+
+.evidence-columns {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 1.5rem;
+}
+
+.evidence-block {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	background: #fff;
+	border-radius: 16px;
+	box-shadow: 0 6px 18px rgba(31, 41, 51, 0.12);
+	padding: 1rem 1.1rem;
+}
+
+.evidence-subtitle {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--ion-color-dark, #1f2933);
+}
+
+.evidence-actions,
+.audio-controls {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.record-button {
+	--border-radius: 14px;
+	font-weight: 600;
+}
+
+.record-button.is-recording {
+	--background: var(--ion-color-danger, #eb445a);
+}
+
+.recording-hint {
+	margin: 0;
+	text-align: center;
+	font-size: 0.85rem;
+	color: var(--ion-color-medium, #6b7280);
+}
+
+.evidence-placeholder {
+	margin: 0;
+	color: var(--ion-color-medium, #6b7280);
+	font-size: 0.9rem;
+}
+
+.photos-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: 0.75rem;
+}
+
+.photo-item {
+	position: relative;
+}
+
+.remove-photo-btn {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 1;
+	--border-radius: 999px;
+	width: 28px;
+	height: 28px;
+}
+
+.photos-grid ion-img {
+	border-radius: 12px;
+	box-shadow: 0 4px 12px rgba(31, 41, 51, 0.12);
+	background: #fff;
+}
+
+.audio-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	background: transparent;
+}
+
+.audio-item {
+	--background: #fff;
+	border-radius: 12px;
+	box-shadow: 0 4px 12px rgba(31, 41, 51, 0.08);
+	padding: 0.5rem 0.75rem;
+	gap: 0.75rem;
+	align-items: center;
+}
+
+.audio-item audio {
+	width: 160px;
+	max-width: 100%;
+	margin-inline: 0.75rem;
+}
+
+@media (min-width: 768px) {
+	.evidence-columns {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.audio-item audio {
+		width: 200px;
+	}
+}
+
+.submit-button {
+	margin-top: 0.5rem;
+	--border-radius: 16px;
+	font-weight: 600;
+	--color: #ffffff;
+	color: #ffffff;
+}
+
+</style>
