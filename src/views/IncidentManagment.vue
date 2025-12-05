@@ -20,8 +20,12 @@
 							/>
 						</div>
 						<div class="field-group">
-							<label for="filter-date">Fecha</label>
-							<input id="filter-date" v-model="workingFilters.date" type="date" />
+							<label for="filter-date-start">Fecha Inicio</label>
+							<input id="filter-date-start" v-model="workingFilters.fechaInicio" type="date" />
+						</div>
+						<div class="field-group">
+							<label for="filter-date-end">Fecha Fin</label>
+							<input id="filter-date-end" v-model="workingFilters.fechaFin" type="date" />
 						</div>
 						<div class="field-group">
 							<label for="filter-route">Ruta</label>
@@ -207,7 +211,8 @@ type IncidentRow = {
 
 type FilterSet = {
 	keyword: string;
-	date: string;
+	fechaInicio: string;
+	fechaFin: string;
 	routeId: string;
 	state: string;
 	categoryId: string;
@@ -229,7 +234,8 @@ const referenceDataLoaded = ref(false);
 
 const defaultFilters: FilterSet = {
 	keyword: '',
-	date: '',
+	fechaInicio: '',
+	fechaFin: '',
 	routeId: 'all',
 	state: 'all',
 	categoryId: 'all',
@@ -411,9 +417,12 @@ const buildQueryParams = () => {
 		params.keyword = filters.keyword.trim();
 	}
 
-	if (filters.date) {
-		params.fechaInicio = filters.date;
-		params.fechaFin = filters.date;
+	if (filters.fechaInicio) {
+		params.fechaInicio = filters.fechaInicio;
+	}
+
+	if (filters.fechaFin) {
+		params.fechaFin = filters.fechaFin;
 	}
 
 	if (filters.routeId !== 'all') {

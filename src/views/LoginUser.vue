@@ -152,7 +152,7 @@ const forgotPassword = () => {
 
 const goToRegister = () => {
   resetForm();
-  window.open('https://app-park-landing.vercel.app/', '_system');
+  router.push({ name: 'Register' });
 };
 const clearEmail = () => {
   email.value = '';

@@ -1,5 +1,13 @@
 <template>
 	<ion-page>
+		<ion-header >
+			<ion-toolbar>
+				<ion-buttons slot="start">
+					<ion-back-button default-href="/admin/home" text="Atrás"></ion-back-button>
+				</ion-buttons>
+				<ion-title>Detalle del Incidente</ion-title>
+			</ion-toolbar>
+		</ion-header>
 		<ion-content fullscreen class="incident-detail-content">
 			<div v-if="isLoading" class="loading-state">
 				<ion-spinner name="lines" aria-label="Cargando incidente" />
@@ -9,8 +17,8 @@
 				<p>{{ loadError }}</p>
 				<button type="button" class="btn ghost" @click="reloadIncident">Reintentar</button>
 			</div>
-			<div v-else-if="incident" class="incident-detail-page">
-				<header class="detail-header">
+			<div v-else-if="incident" class="incident-detail-aspage">
+				<header class="detail-header" style="margin-left: 24px; margin-top:24px; margin-right:24px">
 					<div>
 						<h1>{{ incidentTitle }}</h1>
 						<p class="subtitle">
@@ -37,124 +45,121 @@
 					</div>
 				</header>
 
-				<section class="card">
+				<section class="card" style="margin-left:12px; max-width:98%">
 					<header class="card-header">
 						<h2>Detalles del Incidente</h2>
 					</header>
 					<form class="incident-form" @submit.prevent>
-						<div class="form-row">
-							<div class="field-group">
-								<label for="route">Ruta</label>
-								<div class="pill-row">
-									<span class="status-pill status-route">{{ selectedRouteName }}</span>
-									<button
-										type="button"
-										class="icon-btn"
-										aria-label="Editar ruta"
-										@click="routeModalOpen = true"
-									>
-										<ion-icon :icon="createOutline" />
-									</button>
+						<div class="content-row">
+							<div class="left-column">
+								<div class="field-group date-field-group">
+									<label for="date">Fecha de reporte</label>
+									<input id="date" v-model="form.date" type="date" readonly />
+									<p class="field-hint">Solo lectura</p>
+								</div>
+								<div class="field-group description-field">
+									<label for="description">Descripción</label>
+									<textarea id="description" v-model="form.description" rows="4" readonly></textarea>
+									<p class="field-hint">La descripción se actualiza desde el reporte original.</p>
 								</div>
 							</div>
-							<div class="field-group">
-								<label for="date">Fecha de reporte</label>
-								<input id="date" v-model="form.date" type="date" readonly />
-								<p class="field-hint">Solo lectura</p>
-							</div>
-						</div>
-						<div class="field-group">
-							<label for="description">Descripción</label>
-							<textarea id="description" v-model="form.description" rows="4" readonly></textarea>
-							<p class="field-hint">La descripción se actualiza desde el reporte original.</p>
-						</div>
-						<div class="form-row">
-							<div class="field-group">
-								<label for="category">Categoría</label>
-								<div class="pill-row">
-									<span class="status-pill status-category">{{ selectedCategoryName }}</span>
-									<button
-										type="button"
-										class="icon-btn"
-										aria-label="Editar categoría"
-										@click="categoryModalOpen = true"
-									>
-										<ion-icon :icon="createOutline" />
-									</button>
+							<div class="status-column">
+								<div class="field-group">
+									<label for="route">Ruta</label>
+									<div class="pill-row">
+										<span
+											class="status-pill status-route clickable-pill"
+											@click="openPopover('route', $event)"
+										>
+											{{ selectedRouteName }}
+											<ion-icon :icon="chevronDownOutline" class="dropdown-icon" />
+										</span>
+									</div>
 								</div>
-							</div>
-							<div class="field-group">
-								<label for="state">Estado</label>
-								<div class="pill-row">
-									<span class="status-pill status-state">{{ selectedStateLabel }}</span>
-									<button
-										type="button"
-										class="icon-btn"
-										aria-label="Editar estado"
-										@click="stateModalOpen = true"
-									>
-										<ion-icon :icon="createOutline" />
-									</button>
+								<div class="field-group">
+									<label for="category">Categoría</label>
+									<div class="pill-row">
+										<span
+											class="status-pill status-category clickable-pill"
+											@click="openPopover('category', $event)"
+										>
+											{{ selectedCategoryName }}
+											<ion-icon :icon="chevronDownOutline" class="dropdown-icon" />
+										</span>
+									</div>
+								</div>
+								<div class="field-group">
+									<label for="state">Estado</label>
+									<div class="pill-row">
+										<span
+											class="status-pill status-state clickable-pill"
+											@click="openPopover('state', $event)"
+										>
+											{{ selectedStateLabel }}
+											<ion-icon :icon="chevronDownOutline" class="dropdown-icon" />
+										</span>
+									</div>
+								</div>
+								<div class="field-group map-group" v-if="incident?.latitude && incident?.longitude">
+									<label>Ubicación</label>
+									<div id="mini-map" class="mini-map"></div>
 								</div>
 							</div>
 						</div>
 					</form>
 				</section>
 
-				<section class="card">
-					<header class="card-header">
-						<h2>Galería de Fotos</h2>
-					</header>
-					<div v-if="incident.photos.length" class="photo-grid">
-						<div v-for="photo in incident.photos" :key="photo.id ?? photo.url" class="photo-card" @click="openImageModal(photo.url)">
-							<img :src="photo.url" alt="Foto del incidente" />
-							<button
-								type="button"
-								class="icon-btn danger photo-delete"
-								:disabled="deletingPhotoId !== null && deletingPhotoId === photo.id"
-								@click.stop="deletePhoto(photo.id)"
-							>
-								<ion-icon :icon="trashOutline" />
-							</button>
+				<div class="media-row">
+					<section class="card media-section" style="margin-left:12px" max-width="43%">
+						<header class="card-header">
+							<h2>Galería de Fotos</h2>
+						</header>
+						<div v-if="incident.photos.length" class="photo-grid">
+							<div v-for="photo in incident.photos" :key="photo.id ?? photo.url" class="photo-card" @click="openImageModal(photo.url)">
+								<img :src="photo.url" alt="Foto del incidente" />
+								<button
+									type="button"
+									class="icon-btn danger photo-delete"
+									@click.stop="deletePhoto(photo.id)"
+								>
+									<ion-icon :icon="trashOutline" />
+								</button>
+							</div>
 						</div>
-					</div>
-					<p v-else class="empty-state">Este incidente no tiene fotos asociadas.</p>
-				</section>
+						<p v-else class="empty-state">Este incidente no tiene fotos asociadas.</p>
+					</section>
 
-				<section class="card">
-					<header class="card-header">
-						<h2>Archivos de Audio</h2>
-					</header>
-					<ul v-if="incident.audios.length" class="audio-list">
-						<li v-for="audio in incident.audios" :key="audio.id ?? audio.url" class="audio-item">
-							<audio :src="audio.url" controls preload="none"></audio>
-							<button
-								type="button"
-								class="icon-btn danger"
-								:disabled="deletingAudioId !== null && deletingAudioId === audio.id"
-								@click="deleteAudio(audio.id)"
-							>
-								<ion-icon :icon="trashOutline" />
-							</button>
-						</li>
-					</ul>
-					<p v-else class="empty-state">No hay registros de audio para este incidente.</p>
-				</section>
+					<section class="card media-section" style="margin-right:24px" max-width="43%">
+						<header class="card-header">
+							<h2>Archivos de Audio</h2>
+						</header>
+						<ul v-if="incident.audios.length" class="audio-list">
+							<li v-for="audio in incident.audios" :key="audio.id ?? audio.url" class="audio-item">
+								<audio :src="audio.url" controls preload="none"></audio>
+								<button
+									type="button"
+									class="icon-btn danger"
+									@click="deleteAudio(audio.id)"
+								>
+									<ion-icon :icon="trashOutline" />
+								</button>
+							</li>
+						</ul>
+						<p v-else class="empty-state">No hay registros de audio para este incidente.</p>
+					</section>
+				</div>
 			</div>
 
 			<div v-else class="empty-state standalone">Selecciona un incidente para ver los detalles.</div>
 
-			<ion-modal
-				:is-open="categoryModalOpen"
-				@didDismiss="categoryModalOpen = false"
-				:css-class="['selection-modal']"
+			<ion-popover
+				:is-open="popoverState.category.show"
+				:event="popoverState.category.event"
+				@didDismiss="popoverState.category.show = false"
+				class="selection-popover"
+				:show-backdrop="false"
 			>
-				<ion-header>
-					<ion-toolbar>
-						<ion-title>Selecciona una categoría</ion-title>
-					</ion-toolbar>
-				</ion-header>
-				<ion-content class="selection-modal-content">
+				<ion-content class="selection-popover-content">
 					<ion-list v-if="categories.length">
 						<ion-item
 							v-for="category in categories"
@@ -167,21 +172,18 @@
 							<ion-label>{{ category.nombre }}</ion-label>
 						</ion-item>
 					</ion-list>
-					<p v-else class="modal-empty">No hay categorías disponibles.</p>
+					<p v-else class="popover-empty">No hay categorías disponibles.</p>
 				</ion-content>
-			</ion-modal>
+			</ion-popover>
 
-			<ion-modal
-				:is-open="stateModalOpen"
-				@didDismiss="stateModalOpen = false"
-				:css-class="['selection-modal']"
+			<ion-popover
+				:is-open="popoverState.state.show"
+				:event="popoverState.state.event"
+				@didDismiss="popoverState.state.show = false"
+				class="selection-popover"
+				:show-backdrop="false"
 			>
-				<ion-header>
-					<ion-toolbar>
-						<ion-title>Selecciona un estado</ion-title>
-					</ion-toolbar>
-				</ion-header>
-				<ion-content class="selection-modal-content">
+				<ion-content class="selection-popover-content">
 					<ion-list v-if="states.length">
 						<ion-item
 							v-for="state in states"
@@ -194,21 +196,18 @@
 							<ion-label>{{ formatStateLabel(state) }}</ion-label>
 						</ion-item>
 					</ion-list>
-					<p v-else class="modal-empty">No hay estados disponibles.</p>
+					<p v-else class="popover-empty">No hay estados disponibles.</p>
 				</ion-content>
-			</ion-modal>
+			</ion-popover>
 
-			<ion-modal
-				:is-open="routeModalOpen"
-				@didDismiss="routeModalOpen = false"
-				:css-class="['selection-modal']"
+			<ion-popover
+				:is-open="popoverState.route.show"
+				:event="popoverState.route.event"
+				@didDismiss="popoverState.route.show = false"
+				class="selection-popover"
+				:show-backdrop="false"
 			>
-				<ion-header>
-					<ion-toolbar>
-						<ion-title>Selecciona una ruta</ion-title>
-					</ion-toolbar>
-				</ion-header>
-				<ion-content class="selection-modal-content">
+				<ion-content class="selection-popover-content">
 					<ion-list v-if="routes.length">
 						<ion-item
 							v-for="route in routes"
@@ -221,9 +220,9 @@
 							<ion-label>{{ route.nombre }}</ion-label>
 						</ion-item>
 					</ion-list>
-					<p v-else class="modal-empty">No hay rutas disponibles.</p>
+					<p v-else class="popover-empty">No hay rutas disponibles.</p>
 				</ion-content>
-			</ion-modal>
+			</ion-popover>
 			<ion-modal
 				:is-open="isImageModalOpen"
 				@didDismiss="closeImageModal"
@@ -251,12 +250,14 @@ import { computed, reactive, ref, watch } from 'vue';
 import {
 	IonContent,
 	IonHeader,
+	IonBackButton,
 	IonIcon,
 	IonImg,
 	IonItem,
 	IonLabel,
 	IonList,
 	IonModal,
+	IonPopover,
 	IonButtons,
 	IonButton,
 	IonPage,
@@ -265,12 +266,18 @@ import {
 	IonToolbar,
 	alertController,
 	toastController,
+	popoverController,
 	onIonViewWillEnter,
 } from '@ionic/vue';
-import { createOutline, trashOutline } from 'ionicons/icons';
+import { createOutline, trashOutline, chevronDownOutline } from 'ionicons/icons';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { useSession } from '@/composables/useSession';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 type EstadoIncidente = 'ABIERTO' | 'EN_REVISION' | 'CERRADO' | string;
 
@@ -314,6 +321,8 @@ type IncidentDetail = {
 	routeName: string;
 	photos: IncidentPhoto[];
 	audios: IncidentAudio[];
+	latitude?: number;
+	longitude?: number;
 };
 
 type CategoryDTO = { id: number; nombre: string };
@@ -331,10 +340,12 @@ const isLoading = ref(false);
 const loadError = ref<string | null>(null);
 const isSaving = ref(false);
 const isDeletingIncident = ref(false);
-const deletingPhotoId = ref<number | null>(null);
-const deletingAudioId = ref<number | null>(null);
+const deletedPhotoIds = ref<number[]>([]);
+const deletedAudioIds = ref<number[]>([]);
 const isImageModalOpen = ref(false);
 const selectedImage = ref<string | null>(null);
+const map = ref<L.Map | null>(null);
+const mapContainer = ref<HTMLElement | null>(null);
 
 const openImageModal = (image: string) => {
 	selectedImage.value = image;
@@ -360,9 +371,18 @@ const form = reactive({
 	description: '',
 });
 
-const categoryModalOpen = ref(false);
-const stateModalOpen = ref(false);
-const routeModalOpen = ref(false);
+const popoverState = reactive({
+	category: { show: false, event: null as Event | null },
+	state: { show: false, event: null as Event | null },
+	route: { show: false, event: null as Event | null },
+});
+
+const openPopover = (type: keyof typeof popoverState, event: Event) => {
+	popoverState[type].event = event;
+	popoverState[type].show = true;
+};
+
+
 
 const incidentId = computed(() => {
 	const queryId = currentRoute.query.id ?? currentRoute.params.id;
@@ -466,8 +486,8 @@ const mapIncidentDetail = (data: any): IncidentDetail => {
 		state: data?.estado ?? 'EN_REVISION',
 		categoryId: typeof data?.categoriaId === 'number' ? data.categoriaId : null,
 		categoryName: data?.categoriaNombre ?? 'Sin categoría',
-		routeId: typeof data?.rutaId === 'number' ? data.rutaId : null,
-		routeName: data?.rutaNombre ?? 'Sin ruta',
+		routeId: data?.rutaId ? Number(data.rutaId) : null,
+		routeName: data?.rutaNombre ?? '',
 		photos: photosPayload
 			.map((photo) => ({
 				id: resolveMediaId(photo),
@@ -536,13 +556,13 @@ const selectedCategoryName = computed(() => {
 
 const selectedRouteName = computed(() => {
 	if (!form.routeId) {
-		return incident.value?.routeName ?? 'Sin ruta asignada';
+		return incident.value?.routeName ?? '';
 	}
 	const routeId = Number(form.routeId);
 	return (
 		routes.value.find((route) => route.id === routeId)?.nombre ??
 		incident.value?.routeName ??
-		'Ruta sin asignar'
+		''
 	);
 });
 
@@ -645,6 +665,61 @@ const loadIncidentData = async () => {
 	}
 	await fetchReferenceData();
 	await fetchIncidentDetail();
+	if (incidentId.value) {
+		await fetchIncidentLocation(incidentId.value);
+	}
+};
+
+const fetchIncidentLocation = async (id: number) => {
+	if (!apiBaseUrl || !authToken.value) return;
+	try {
+		const endpoint = `${apiBaseUrl}/api/admin/incidentes/${id}/mapa`;
+		const { data } = await axios.get(endpoint, { headers: buildAuthHeaders() });
+		if (incident.value && data.latitud && data.longitud) {
+			incident.value.latitude = data.latitud;
+			incident.value.longitude = data.longitud;
+			initMap();
+		}
+	} catch (error) {
+		console.error('Failed to fetch location', error);
+	}
+};
+
+const initMap = () => {
+	if (!incident.value?.latitude || !incident.value?.longitude) return;
+
+	// Fix icons
+	delete (L.Icon.Default.prototype as any)._getIconUrl;
+	L.Icon.Default.mergeOptions({
+		iconRetinaUrl: markerIcon2x,
+		iconUrl: markerIcon,
+		shadowUrl: markerShadow,
+	});
+
+	if (map.value) {
+		map.value.remove();
+		map.value = null;
+	}
+
+	setTimeout(() => {
+		const el = document.getElementById('mini-map');
+		if (!el) return;
+
+		const newMap = L.map('mini-map', {
+			center: [incident.value!.latitude!, incident.value!.longitude!],
+			zoom: 15,
+			zoomControl: true,
+			attributionControl: false,
+		});
+
+		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			attribution: '&copy; OpenStreetMap contributors',
+		}).addTo(newMap);
+
+		L.marker([incident.value!.latitude!, incident.value!.longitude!]).addTo(newMap);
+		
+		map.value = newMap;
+	}, 200);
 };
 
 const reloadIncident = () => {
@@ -681,17 +756,17 @@ onIonViewWillEnter(() => {
 
 const selectCategory = (category: CategoryDTO) => {
 	form.categoryId = String(category.id);
-	categoryModalOpen.value = false;
+	popoverState.category.show = false;
 };
 
 const selectState = (state: EstadoIncidente) => {
 	form.state = state;
-	stateModalOpen.value = false;
+	popoverState.state.show = false;
 };
 
 const selectRoute = (route: RouteDTO) => {
 	form.routeId = String(route.id);
-	routeModalOpen.value = false;
+	popoverState.route.show = false;
 };
 
 const updateState = async (state: EstadoIncidente) => {
@@ -731,19 +806,48 @@ const onGuardar = async () => {
 	if (Number.isFinite(nextCategoryId) && nextCategoryId !== incident.value.categoryId) {
 		updates.push(() => updateCategory(nextCategoryId));
 	}
-	const nextRouteId = Number(form.routeId);
-	if (Number.isFinite(nextRouteId) && nextRouteId !== incident.value.routeId) {
+	const nextRouteId = form.routeId ? Number(form.routeId) : null;
+	if (nextRouteId !== null && nextRouteId !== incident.value.routeId) {
 		updates.push(() => updateRoute(nextRouteId));
 	}
-	if (!updates.length) {
+	if (!updates.length && !deletedPhotoIds.value.length && !deletedAudioIds.value.length) {
 		await showToast('No hay cambios pendientes por guardar.', 'warning');
 		return;
 	}
 	isSaving.value = true;
 	try {
+		// Process media deletions individually
+		const photoIdsToDelete = [...deletedPhotoIds.value];
+		for (const photoId of photoIdsToDelete) {
+			try {
+				const endpoint = `${apiBaseUrl}/api/admin/incidentes/fotos/${photoId}`;
+				await axios.delete(endpoint, { headers: buildAuthHeaders() });
+				// Remove from list on success
+				deletedPhotoIds.value = deletedPhotoIds.value.filter(id => id !== photoId);
+			} catch (error) {
+				console.error(`Failed to delete photo ${photoId}`, error);
+				// Continue with other deletions even if one fails
+			}
+		}
+
+		const audioIdsToDelete = [...deletedAudioIds.value];
+		for (const audioId of audioIdsToDelete) {
+			try {
+				const endpoint = `${apiBaseUrl}/api/admin/incidentes/audios/${audioId}`;
+				await axios.delete(endpoint, { headers: buildAuthHeaders() });
+				// Remove from list on success
+				deletedAudioIds.value = deletedAudioIds.value.filter(id => id !== audioId);
+			} catch (error) {
+				console.error(`Failed to delete audio ${audioId}`, error);
+				// Continue with other deletions even if one fails
+			}
+		}
+
+		// Process other updates
 		for (const action of updates) {
 			await action();
 		}
+
 		await fetchIncidentDetail();
 		await showToast('Cambios guardados correctamente.');
 	} catch (error) {
@@ -795,51 +899,27 @@ const onEliminar = async () => {
 	await alert.present();
 };
 
-const deletePhoto = async (photoId: number | null) => {
+const deletePhoto = (photoId: number | null) => {
 	if (!photoId) {
-		await showToast('No se puede eliminar la foto.', 'warning');
+		void showToast('No se puede eliminar la foto.', 'warning');
 		return;
 	}
-	if (deletingPhotoId.value === photoId) {
-		return;
-	}
-	deletingPhotoId.value = photoId;
-	try {
-		const endpoint = `${apiBaseUrl}/api/admin/incidentes/fotos/${photoId}`;
-		await axios.delete(endpoint, { headers: buildAuthHeaders() });
-		if (incident.value) {
-			incident.value.photos = incident.value.photos.filter((photo) => photo.id !== photoId);
-		}
-		await showToast('Foto eliminada correctamente.');
-	} catch (error) {
-		console.error('admin-photo-delete-error', error);
-		await showToast(extractErrorMessage(error), 'danger');
-	} finally {
-		deletingPhotoId.value = null;
+	if (incident.value) {
+		incident.value.photos = incident.value.photos.filter((photo) => photo.id !== photoId);
+		deletedPhotoIds.value.push(photoId);
+		void showToast('Foto marcada para eliminación. Guarda cambios para confirmar.', 'warning');
 	}
 };
 
-const deleteAudio = async (audioId: number | null) => {
+const deleteAudio = (audioId: number | null) => {
 	if (!audioId) {
-		await showToast('No se puede eliminar el audio.', 'warning');
+		void showToast('No se puede eliminar el audio.', 'warning');
 		return;
 	}
-	if (deletingAudioId.value === audioId) {
-		return;
-	}
-	deletingAudioId.value = audioId;
-	try {
-		const endpoint = `${apiBaseUrl}/api/admin/incidentes/audios/${audioId}`;
-		await axios.delete(endpoint, { headers: buildAuthHeaders() });
-		if (incident.value) {
-			incident.value.audios = incident.value.audios.filter((audio) => audio.id !== audioId);
-		}
-		await showToast('Audio eliminado correctamente.');
-	} catch (error) {
-		console.error('admin-audio-delete-error', error);
-		await showToast(extractErrorMessage(error), 'danger');
-	} finally {
-		deletingAudioId.value = null;
+	if (incident.value) {
+		incident.value.audios = incident.value.audios.filter((audio) => audio.id !== audioId);
+		deletedAudioIds.value.push(audioId);
+		void showToast('Audio marcado para eliminación. Guarda cambios para confirmar.', 'warning');
 	}
 };
 </script>
@@ -847,6 +927,7 @@ const deleteAudio = async (audioId: number | null) => {
 <style scoped>
 .incident-detail-content {
 	--background: linear-gradient(180deg, rgba(241, 245, 249, 0.9) 0%, rgba(248, 250, 252, 1) 100%);
+
 }
 
 .incident-detail-page {
@@ -1014,7 +1095,7 @@ const deleteAudio = async (audioId: number | null) => {
 .field-group {
 	display: flex;
 	flex-direction: column;
-	flex: 1 1 260px;
+	flex: 1 1 300px;
 	gap: 8px;
 }
 
@@ -1042,7 +1123,8 @@ const deleteAudio = async (audioId: number | null) => {
 
 .field-group textarea {
 	resize: vertical;
-	min-height: 120px;
+	min-height: 300px;
+	max-width: 500px;
 }
 
 .field-hint {
@@ -1060,10 +1142,10 @@ const deleteAudio = async (audioId: number | null) => {
 .status-pill {
 	display: inline-flex;
 	align-items: center;
-	padding: 6px 14px;
+	padding: 10px 20px;
 	border-radius: 999px;
 	font-weight: 600;
-	font-size: 0.8rem;
+	font-size: 1rem;
 }
 
 .status-category {
@@ -1084,11 +1166,15 @@ const deleteAudio = async (audioId: number | null) => {
 .icon-btn {
 	border: none;
 	background: transparent;
-	padding: 6px;
-	border-radius: 10px;
+	padding: 10px;
+	border-radius: 12px;
 	color: #475569;
 	cursor: pointer;
 	transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.icon-btn ion-icon {
+	font-size: 1.4rem;
 }
 
 .icon-btn:hover {
@@ -1112,7 +1198,7 @@ const deleteAudio = async (audioId: number | null) => {
 
 .photo-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
 	gap: 16px;
 }
 
@@ -1131,7 +1217,7 @@ const deleteAudio = async (audioId: number | null) => {
 
 .photo-card img {
 	width: 100%;
-	height: 140px;
+	aspect-ratio: 1 / 1;
 	object-fit: cover;
 }
 
@@ -1206,85 +1292,164 @@ const deleteAudio = async (audioId: number | null) => {
 	.header-actions {
 		flex-direction: column;
 	}
-}
-</style>
 
-<style>
-.selection-modal {
-	--width: min(420px, 92vw);
-	--max-height: 420px;
-	--border-radius: 22px;
-	--box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
-	--backdrop-opacity: 0.45;
+	.media-row {
+		flex-direction: column;
+	}
 }
 
-.selection-modal::part(content) {
-	background: linear-gradient(180deg, #bbf7d0 0%, #ffffff 100%);
-	border: 1px solid rgba(134, 239, 172, 0.24);
+.media-row {
+	display: flex;
+	gap: 24px;
+	align-items: flex-start;
 }
 
-.selection-modal ion-toolbar {
-	--background: linear-gradient(135deg, rgba(34, 197, 94, 0.24), rgba(22, 163, 74, 0.24));
-	--color: #065f46;
-	--border-width: 0;
-	border-bottom: 1px solid rgba(134, 239, 172, 0.26);
+.media-section {
+	flex: 1;
+	min-width: 0; /* Prevents flex item from overflowing */
 }
 
-.selection-modal ion-title {
-	font-weight: 700;
-	font-size: 1rem;
-	letter-spacing: 0.01em;
+.content-row {
+	display: flex;
+	gap: 24px;
+	flex-wrap: wrap;
+	align-items: flex-start;
 }
 
-.selection-modal .selection-modal-content {
-	--background: transparent;
-	padding: 18px 20px 12px;
-}
-
-.selection-modal ion-list {
-	background: transparent;
+.left-column {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	padding: 0;
-	margin-top: 12px;
-	margin-bottom: 0;
+	flex: 1 1 400px;
 }
 
-.selection-modal ion-item {
-	--padding-start: 18px;
-	--inner-padding-end: 18px;
-	--min-height: 58px;
-	--background: rgba(255, 255, 255, 0.94);
-	--border-radius: 16px;
-	--border-color: rgba(134, 239, 172, 0.32);
-	--border-style: solid;
-	--border-width: 1px;
-	--detail-icon-opacity: 0;
-	color: #065f46;
+.date-field-group {
+	max-width: 200px;
+}
+
+.description-field {
+	width: 100%;
+}
+
+.status-column {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	flex: 1 1 300px;
+}
+
+.status-column .field-group,
+.left-column .field-group {
+	flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+	.content-row {
+		flex-direction: column;
+	}
+
+	.left-column,
+	.status-column {
+		flex: 1 1 auto;
+		width: 100%;
+		max-width: none;
+	}
+
+	.field-group textarea {
+		max-width: none;
+	}
+}
+
+
+/* Map */
+.mini-map {
+	height: 200px;
+	width: 85%;
+	border-radius: 16px;
+	margin-top: 16px;
+	z-index: 1;
+	border: 1px solid rgba(0, 0, 0, 0.05);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Popovers - Dropdown Style */
+.selection-popover {
+	--width: 250px;
+	--max-height: 300px;
+	--box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+	--backdrop-opacity: 0;
+}
+
+.selection-popover-content {
+	--background: #ffffff;
+}
+
+.selection-popover ion-list {
+	padding: 4px;
+	background: transparent;
+	margin: 0;
+}
+
+.selection-popover ion-item {
+	--padding-start: 12px;
+	--inner-padding-end: 12px;
+	--min-height: 44px;
+	--background: #ffffff;
+	border-radius: 6px;
+	margin-bottom: 2px;
+	font-size: 0.95rem;
+	border: 1px solid transparent;
+	box-shadow: none;
+	transition: background-color 0.2s ease;
+}
+
+.selection-popover ion-item:hover {
+	--background: #f1f5f9;
+}
+
+.selection-popover ion-item.option-active {
+	--background: #e2e8f0;
+	color: var(--ion-color-primary-shade);
 	font-weight: 600;
-	box-shadow: 0 12px 26px rgba(52, 211, 153, 0.12);
-	transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
-.selection-modal ion-item:hover {
-	transform: translateY(-1px);
-	box-shadow: 0 16px 34px rgba(34, 197, 94, 0.2);
-	--background: rgba(187, 247, 208, 0.45);
-}
-
-.selection-modal ion-item.option-active {
-	--background: rgba(34, 197, 94, 0.3);
-	--border-color: rgba(52, 211, 153, 0.48);
-	box-shadow: 0 18px 36px rgba(34, 197, 94, 0.22);
-	color: #065f46;
-}
-
-.selection-modal ion-item.option-active ion-label {
-	font-weight: 700;
-}
-
-.selection-modal ion-label {
+.selection-popover ion-item.option-active ion-label {
 	color: inherit;
+}
+
+.selection-popover ion-label {
+	color: #334155;
+	margin: 0;
+}
+
+.popover-empty {
+	text-align: center;
+	color: #94a3b8;
+	padding: 16px;
+	font-size: 0.9rem;
+	margin: 0;
+}
+
+.clickable-pill {
+	cursor: pointer;
+	transition: opacity 0.2s ease, transform 0.2s ease;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.clickable-pill:hover {
+	opacity: 0.85;
+	transform: translateY(-1px);
+}
+
+.clickable-pill:active {
+	opacity: 0.6;
+	transform: translateY(0);
+}
+
+.dropdown-icon {
+	font-size: 1.1rem;
+	opacity: 0.7;
 }
 </style>

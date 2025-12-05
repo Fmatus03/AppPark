@@ -167,9 +167,11 @@
 					class="submit-button"
 					color="primary"
 					size="large"
+					:disabled="isSubmitting"
 					@click="submitIncident"
 				>
-					Enviar incidente
+					<ion-spinner v-if="isSubmitting" name="lines-small" slot="start" />
+					{{ isSubmitting ? 'Enviando...' : 'Enviar incidente' }}
 				</ion-button>
 				<ion-chip class="safe-area-spacer" aria-hidden="true" disabled>
 					Espacio reservado
@@ -228,6 +230,7 @@ const selectedCategory = ref<Category | null>(null);
 const categories = ref<Category[]>([]);
 const evidencePhotos = ref<Photo[]>([]);
 const isCapturing = ref(false);
+const isSubmitting = ref(false);
 const audioEvidence = ref<AudioEvidence[]>([]);
 const isRecordingAudio = ref(false);
 const isProcessingAudio = ref(false);
@@ -720,6 +723,8 @@ const submitIncident = async () => {
 
 	console.info('incidente-submit', JSON.stringify(incidentData, null, 2));
 
+	isSubmitting.value = true;
+
 	try {
 		if (isAndroidNativeApp()) {
 			await uploadIncidentNative(endpoint, headers, incidentData);
@@ -745,6 +750,8 @@ const submitIncident = async () => {
 		const status = (error as { status?: number })?.status;
 		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
 		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
+	} finally {
+		isSubmitting.value = false;
 	}
 };
 </script>

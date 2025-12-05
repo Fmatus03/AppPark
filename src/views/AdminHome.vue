@@ -7,16 +7,18 @@
 		</ion-header>
 		<ion-content :fullscreen="true">
 			<div class="mapa-incidentes">
-				<div class="date-range-info">
-					<p>
-						Últimos 7 días
-						<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
-					</p>
-				</div>
-				<div class="mapa-incidentes__actions">
-					<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
-						{{ loading ? 'Actualizando…' : 'Recargar' }}
-					</button>
+				<div class="mapa-incidentes__controls">
+					<div class="date-range-info">
+						<p>
+							Últimos 7 días
+							<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
+						</p>
+					</div>
+					<div class="mapa-incidentes__actions">
+						<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
+							{{ loading ? 'Actualizando…' : 'Recargar' }}
+						</button>
+					</div>
 				</div>
 				<section class="mapa-incidentes__status" v-if="!resolvedToken">
 					<p>Inicia sesión para visualizar los incidentes.</p>
@@ -32,7 +34,7 @@
 
 				<div class="mapa-incidentes__map-wrapper">
 					<div v-if="loading" class="mapa-incidentes__overlay">
-						<div class="spinner" aria-hidden="true"></div>
+						<ion-spinner name="lines-small" />
 						<p>Cargando incidentes…</p>
 					</div>
 					<div ref="mapContainer" class="mapa-incidentes__map"></div>
@@ -44,7 +46,7 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { IonContent, IonPage } from '@ionic/vue';
+import { IonContent, IonPage, IonSpinner } from '@ionic/vue';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -59,39 +61,49 @@ README — MapaIncidentes
 - Token: pass it via the optional `token` prop or rely on the session store (`useSession`) that injects the current bearer token automatically.
 - API base: configure VITE_PARK_APP_API_URL in your .env file (e.g. http://api.example.com/).
 - Default map center/zoom: (-38.739, -72.598) with zoom 15 when no markers are available.
-- Acceptance criteria covered: fetch list (7 days) on mount, fetch detail per incident, markers rely on detail lat/lon, popups show Title/Category/Status/Date/Description, skip markers without coordinates, always add Bearer token, clustering is omitted.
+- Acceptance criteria covered: fetch list (7 days) on mount, markers rely on list lat/lon, popups show Title/Category/Status/Date, skip markers without coordinates, always add Bearer token, clustering is omitted.
 */
 
-type IncidentListItem = {
+type IncidentMapItem = {
 	id: number;
 	titulo: string;
 	categoriaNombre?: string;
-	fechaReporte?: string;
-	estado?: string;
-};
-
-type IncidentDetail = {
-	id: number;
-	titulo: string;
-	descripcion?: string;
 	fechaReporte?: string;
 	estado?: string;
 	latitud?: number;
 	longitud?: number;
-	categoriaNombre?: string;
 };
 
-type PaginatedResponse = {
-	content?: IncidentListItem[];
+type Coordinate = {
+	latitud: number;
+	longitud: number;
+};
+
+type RouteZone = {
+	id: number;
+	nombre: string;
+	coordenadas: Coordinate[];
 };
 
 const session = useSession();
+
+const ZONE_COLORS = [
+	'#3b82f6', // blue-500
+	'#ef4444', // red-500
+	'#10b981', // emerald-500
+	'#f59e0b', // amber-500
+	'#8b5cf6', // violet-500
+	'#ec4899', // pink-500
+	'#06b6d4', // cyan-500
+	'#84cc16', // lime-500
+];
 
 export default defineComponent({
 	name: 'MapaIncidentes',
 	components: {
 		IonContent,
 		IonPage,
+		IonSpinner,
 	},
 	props: {
 		token: {
@@ -105,7 +117,9 @@ export default defineComponent({
 			error: '',
 			map: null as L.Map | null,
 			markers: [] as L.Marker[],
-			incidents: [] as IncidentDetail[],
+			polygons: [] as L.Polygon[],
+			incidents: [] as IncidentMapItem[],
+			zones: [] as RouteZone[],
 			fechaInicio: '',
 			fechaFin: '',
 			center: { lat: -38.739, lng: -72.598 },
@@ -126,6 +140,7 @@ export default defineComponent({
 		resolvedToken(newToken: string | null, oldToken: string | null) {
 			if (newToken && newToken !== oldToken) {
 				void this.loadIncidents();
+				void this.fetchZones();
 			}
 		},
 	},
@@ -153,6 +168,7 @@ export default defineComponent({
 				this.initializeMap();
 				if (this.resolvedToken) {
 					void this.loadIncidents();
+					void this.fetchZones();
 				}
 			});
 		},
@@ -198,32 +214,60 @@ export default defineComponent({
 				Accept: 'application/json',
 			};
 		},
-		// Fetches the paginated list of incidents for the selected date window.
-		async fetchIncidentList(): Promise<IncidentListItem[]> {
-			const response = await axios.get<PaginatedResponse>(`${this.baseUrl}/api/admin/incidentes`, {
+		// Fetches the list of incidents for the map with coordinates.
+		async fetchMapIncidents(): Promise<IncidentMapItem[]> {
+			const response = await axios.get<IncidentMapItem[]>(`${this.baseUrl}/api/admin/incidentes/mapa`, {
 				headers: this.buildHeaders(),
 				params: {
 					fechaInicio: this.fechaInicio,
 					fechaFin: this.fechaFin,
-					page: 0,
-					size: 100,
-					sortBy: 'fechaReporte',
-					sortDirection: 'DESC',
 				},
 			});
-			return response.data?.content ?? [];
+			return Array.isArray(response.data) ? response.data : [];
 		},
-		// Fetches the detailed incident information required to obtain coordinates.
-		async fetchIncidentDetail(id: number): Promise<IncidentDetail | null> {
+		// Fetches the route zones (polygons) from the backend.
+		async fetchZones() {
+			if (!this.resolvedToken || !this.baseUrl) return;
 			try {
-				const response = await axios.get<IncidentDetail>(`${this.baseUrl}/api/admin/incidentes/${id}`, {
+				const response = await axios.get<RouteZone[]>(`${this.baseUrl}/api/admin/incidentes/rutas-con-geometria`, {
 					headers: this.buildHeaders(),
 				});
-				return response.data;
+				this.zones = Array.isArray(response.data) ? response.data : [];
+				this.drawZones();
 			} catch (error) {
-				console.error('incident-detail-error', id, error);
-				return null;
+				console.error('fetch-zones-error', error);
 			}
+		},
+		// Draws the zone polygons on the map.
+		drawZones() {
+			if (!this.map || !this.zones.length) return;
+
+			// Clear existing polygons
+			this.polygons.forEach((polygon) => polygon.remove());
+			this.polygons = [];
+
+			this.zones.forEach((zone, index) => {
+				if (!zone.coordenadas || zone.coordenadas.length < 3) return;
+
+				const latLngs = zone.coordenadas.map((coord) => [coord.latitud, coord.longitud] as [number, number]);
+				const color = ZONE_COLORS[index % ZONE_COLORS.length];
+
+				const polygon = L.polygon(latLngs, {
+					color: color,
+					fillColor: color,
+					fillOpacity: 0.2,
+					weight: 2,
+				});
+
+				polygon.bindTooltip(zone.nombre, {
+					permanent: false,
+					direction: 'center',
+					className: 'zone-tooltip',
+				});
+
+				polygon.addTo(this.map as L.Map);
+				this.polygons.push(polygon);
+			});
 		},
 		// Clears any previous leaflet markers from the map.
 		clearMarkers() {
@@ -234,6 +278,8 @@ export default defineComponent({
 		destroyMap() {
 			try {
 				this.clearMarkers();
+				this.polygons.forEach((polygon) => polygon.remove());
+				this.polygons = [];
 				if (this.map) {
 					try {
 						this.map.off();
@@ -252,15 +298,11 @@ export default defineComponent({
 			}
 		},
 		// Creates a marker with a structured popup card and attaches it to the map.
-		createMarker(incident: IncidentDetail) {
+		createMarker(incident: IncidentMapItem) {
 			if (!this.map || typeof incident.latitud !== 'number' || typeof incident.longitud !== 'number') {
 				return;
 			}
 			const marker = L.marker([incident.latitud, incident.longitud]);
-
-			// Description truncation with full text in title attribute
-			const fullDesc = incident.descripcion || '';
-			const descTruncated = fullDesc.length > 120 ? `${fullDesc.slice(0, 120)}…` : fullDesc;
 
 			// Build popup HTML (plain HTML — do NOT mount Vue inside)
 			const popupHtml = `
@@ -270,8 +312,7 @@ export default defineComponent({
 							<h3 id="inc-title-${incident.id}" class="card-title">${this.escapeHtml(incident.titulo || 'Sin título')}</h3>
 							<div class="meta"><span class="cat">${this.escapeHtml(incident.categoriaNombre || 'Sin categoría')}</span> <span class="status status-${(incident.estado || 'DESCONOCIDO').toString().toUpperCase()}">${this.escapeHtml(incident.estado || 'Desconocido')}</span></div>
 							<div class="meta" style="margin-top:6px">${this.formatDate(incident.fechaReporte)}</div>
-							<p class="desc" title="${this.escapeHtml(fullDesc)}">${this.escapeHtml(descTruncated) || 'Sin descripción'}</p>
-							<div class="card-actions"><button class="btn-details" data-id="${incident.id}" tabindex="0" aria-label="Ver detalle incidente ${incident.id}">Ver detalle</button></div>
+							<div class="card-actions" style="margin-top:8px"><button class="btn-details" data-id="${incident.id}" tabindex="0" aria-label="Ver detalle incidente ${incident.id}">Ver detalle</button></div>
 						</div>
 					</div>
 				</div>
@@ -360,7 +401,7 @@ export default defineComponent({
 			const minute = parts.find((p: any) => p.type === 'minute')?.value ?? '';
 			return `${day} ${month} ${year} ${hour}:${minute}`;
 		},
-		// Loads incidents end-to-end: list + details + markers.
+		// Loads incidents end-to-end: list + markers.
 		async loadIncidents() {
 			if (!this.resolvedToken || !this.baseUrl) {
 				this.error = 'No pudimos autenticar la solicitud.';
@@ -369,21 +410,19 @@ export default defineComponent({
 			this.loading = true;
 			this.error = '';
 			try {
-				const list = await this.fetchIncidentList();
+				const list = await this.fetchMapIncidents();
 				if (!list.length) {
 					this.incidents = [];
 					this.clearMarkers();
 					this.fitMapToMarkers();
 					return;
 				}
-				const details = await Promise.all(
-					list.map((item) => this.fetchIncidentDetail(item.id))
-				);
-				const validIncidents = details.filter((detail): detail is IncidentDetail => {
+				
+				const validIncidents = list.filter((item) => {
 					return (
-						detail !== null &&
-						typeof detail.latitud === 'number' &&
-						typeof detail.longitud === 'number'
+						item !== null &&
+						typeof item.latitud === 'number' &&
+						typeof item.longitud === 'number'
 					);
 				});
 				this.incidents = validIncidents;
@@ -400,6 +439,7 @@ export default defineComponent({
 		// Handler for the manual reload button.
 		onReload() {
 			void this.loadIncidents();
+			void this.fetchZones();
 		},
 	},
 });
@@ -436,6 +476,14 @@ export default defineComponent({
 .mapa-incidentes__header p {
 	margin: 0;
 	color: #475569;
+}
+
+.mapa-incidentes__controls {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
 }
 
 .mapa-incidentes__actions {
@@ -480,15 +528,20 @@ export default defineComponent({
 
 .mapa-incidentes__map-wrapper {
 	position: relative;
-	min-height: 420px;
+	min-height: 70vh;
+	max-height: 75vh;
+	min-width: 70%;
+	aspect-ratio: 1 / 1;
 	border-radius: 16px;
 	overflow: hidden;
 	border: 1px solid #e2e8f0;
+	margin: 0 auto;
+	max-width: 100%;
 }
 
 .mapa-incidentes__map {
 	height: 100%;
-	min-height: 420px;
+	width: 100%;
 }
 
 .mapa-incidentes__overlay {
