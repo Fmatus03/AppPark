@@ -62,8 +62,8 @@
 							<div class="evidence-gallery" v-if="evidenceImages.length">
 								<h3>Imágenes</h3>
 								<div class="image-grid">
-									<ion-card v-for="(image, index) in evidenceImages" :key="`${image}-${index}`" class="image-card" @click="openImageModal(image)">
-											<ion-img :src="image" :alt="`Evidencia fotográfica ${index + 1}`" loading="lazy" />
+									<ion-card v-for="(image, index) in evidenceImages" :key="`${image.id}-${index}`" class="image-card" @click="openImageModal(image.url)">
+											<ion-img :src="image.url" :alt="`Evidencia fotográfica ${index + 1}`" loading="lazy" />
 										</ion-card>
 								</div>
 							</div>
@@ -87,8 +87,8 @@
 							<div class="evidence-audio" v-if="evidenceAudios.length">
 								<h3>Audios</h3>
 								<ion-list lines="none">
-									<ion-item v-for="(audio, index) in evidenceAudios" :key="`${audio}-${index}`" class="audio-item">
-										<audio controls preload="metadata" :src="audio"></audio>
+									<ion-item v-for="(audio, index) in evidenceAudios" :key="`${audio.id}-${index}`" class="audio-item">
+										<audio controls preload="metadata" :src="audio.url"></audio>
 									</ion-item>
 								</ion-list>
 							</div>
@@ -164,9 +164,10 @@ interface IncidenteResponseDTO {
 	latitud?: Nullable<number>;
 	longitud?: Nullable<number>;
 	rutaId?: Nullable<number>;
+	rutaNombre?: Nullable<string>;
 	reportadoPorEmail?: Nullable<string>;
-	fotos?: Nullable<string[]>;
-	audios?: Nullable<string[]>;
+	fotos?: Nullable<{ id: number; url: string; fechaCarga: string }[]>;
+	audios?: Nullable<{ id: number; url: string; fechaCarga: string }[]>;
 }
 
 const route = useRoute();
@@ -379,9 +380,9 @@ const incidentDetails = computed(() => {
 			icon: pricetagOutline,
 		},
 		{
-			id: 'location',
-			label: 'Ubicación',
-			value: formatLocation(current),
+			id: 'route',
+			label: 'Ruta',
+			value: current.rutaNombre ?? 'Sin ruta asignada',
 			icon: locationOutline,
 		},
 		{
