@@ -190,11 +190,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="tendenciasCategorias.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="tendenciasCategorias.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="tendenciasCategorias.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="tendenciasCategorias.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -241,11 +241,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="evolucionCategorias.payload.fechaInicio" presentation="date" />
+								<input type="date" v-model="evolucionCategorias.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="evolucionCategorias.payload.fechaFin" presentation="date" />
+								<input type="date" v-model="evolucionCategorias.payload.fechaFin" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Agrupación</span>
@@ -306,11 +306,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="analisisHorario.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="analisisHorario.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="analisisHorario.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="analisisHorario.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -334,11 +334,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="rutasCriticas.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="rutasCriticas.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="rutasCriticas.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="rutasCriticas.payload.fechaFin" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Top de rutas</span>
@@ -402,11 +402,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Mes 1</span>
-								<ion-datetime v-model="comparacionMensual.payload.mes1" presentation="month" />
+								<input type="month" v-model="comparacionMensual.payload.mes1" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Mes 2</span>
-								<ion-datetime v-model="comparacionMensual.payload.mes2" presentation="month" />
+								<input type="month" v-model="comparacionMensual.payload.mes2" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -575,11 +575,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="patronesHorarios.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="patronesHorarios.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="patronesHorarios.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="patronesHorarios.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -612,11 +612,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="incidentesRecurrentes.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="incidentesRecurrentes.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="incidentesRecurrentes.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="incidentesRecurrentes.payload.fechaFin" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Umbral recurrencia</span>
@@ -669,11 +669,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="comparacionZonas.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="comparacionZonas.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="comparacionZonas.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="comparacionZonas.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -728,11 +728,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="tiempoResolucion.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="tiempoResolucion.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="tiempoResolucion.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="tiempoResolucion.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -787,11 +787,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="rankingTendenciaRutas.payload.fechaInicio" presentation="date" />
+								<input type="date" v-model="rankingTendenciaRutas.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="rankingTendenciaRutas.payload.fechaFin" presentation="date" />
+								<input type="date" v-model="rankingTendenciaRutas.payload.fechaFin" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Agrupación</span>
@@ -861,11 +861,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="proporcionEstados.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="proporcionEstados.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="proporcionEstados.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="proporcionEstados.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -897,11 +897,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Fecha inicio</span>
-								<ion-datetime v-model="eficienciaCierre.payload.fechaInicio" presentation="date-time" />
+								<input type="date" v-model="eficienciaCierre.payload.fechaInicio" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Fecha fin</span>
-								<ion-datetime v-model="eficienciaCierre.payload.fechaFin" presentation="date-time" />
+								<input type="date" v-model="eficienciaCierre.payload.fechaFin" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -981,6 +981,8 @@ import {
 	IonGrid,
 	IonRow,
 	IonCol,
+	onIonViewWillEnter,
+	onIonViewWillLeave,
 } from '@ionic/vue';
 import { computed, reactive, ref, watch, onMounted } from 'vue';
 import {
@@ -1007,6 +1009,7 @@ import OverviewFilterBar from '@/components/OverviewFilterBar.vue';
 import { useAnalyticsApi } from '@/composables/useAnalyticsApi';
 import { useSession } from '@/composables/useSession';
 import { useOverviewState } from '@/composables/useOverviewState';
+import { useSidebar } from '@/composables/useSidebar';
 import type { ChartData, ChartOptions } from 'chart.js';
 import type {
 	DateRangePayload,
@@ -1035,6 +1038,15 @@ import type {
 // --- STATE & API ---
 const session = useSession();
 const { postReport } = useAnalyticsApi({ getToken: () => session.authToken.value ?? undefined });
+const { setMinimized } = useSidebar();
+
+onIonViewWillEnter(() => {
+	setMinimized(true);
+});
+
+onIonViewWillLeave(() => {
+	setMinimized(false);
+});
 
 const colorPalette = ['#2563eb', '#22c55e', '#f97316', '#a855f7', '#0ea5e9', '#ef4444', '#14b8a6', '#f59e0b'];
 const extendedPalette = [...colorPalette, '#f472b6', '#10b981', '#f87171', '#2dd4bf', '#fbbf24', '#6366f1'];
@@ -1054,7 +1066,7 @@ const defaultRange = (days = 30): DateRangePayload => {
 	const end = new Date();
 	const start = new Date();
 	start.setDate(end.getDate() - days);
-	return { fechaInicio: start.toISOString(), fechaFin: end.toISOString() };
+	return { fechaInicio: start.toISOString().split('T')[0], fechaFin: end.toISOString().split('T')[0] };
 };
 const formatMonth = (date: Date) => date.toISOString().slice(0, 7);
 const defaultMonthRange = () => {
@@ -1076,7 +1088,7 @@ const analisisEstacional = createSectionState<{ anio: number }, AnalisisEstacion
 const patronesHorarios = createSectionState<DateRangePayload, PatronesHorariosResponse>(defaultRange(60));
 const incidentesRecurrentes = createSectionState<DateRangePayload & { umbralRecurrencia: number }, IncidentesRecurrentesResponse>({ ...defaultRange(180), umbralRecurrencia: 10 });
 const comparacionZonas = createSectionState<DateRangePayload, ComparacionZonasResponse>(defaultRange(120));
-const tiempoResolucion = createSectionState<DateRangePayload, TiempoResolucionResponse>({ fechaInicio: '2020-01-01T00:00:00', fechaFin: new Date().toISOString() });
+const tiempoResolucion = createSectionState<DateRangePayload, TiempoResolucionResponse>({ fechaInicio: '2020-01-01', fechaFin: new Date().toISOString().split('T')[0] });
 const rankingTendenciaRutas = createSectionState<DateRangePayload & { agrupacion: AgrupacionTemporal; top: number }, RankingTendenciaRutasResponse>({ ...defaultRange(365), agrupacion: 'MENSUAL', top: 5 });
 const proporcionEstados = createSectionState<DateRangePayload, ProporcionEstadosResponse>(defaultRange(180));
 const eficienciaCierre = createSectionState<DateRangePayload, EficienciaCierreResponse>(defaultRange(365));
@@ -1598,7 +1610,18 @@ watch(activeReportId, (newId) => {
 .visual-row {
 	display: flex;
 	gap: 24px;
-	flex-wrap: wrap;
+}
+
+.date-input {
+	height: 44px;
+	border-radius: 12px;
+	border: 1px solid rgba(148, 163, 184, 0.6);
+	padding: 0 12px;
+	font-size: 0.95rem;
+	color: #1f2937;
+	background: #ffffff;
+	font-family: inherit;
+	width: 100%;
 }
 
 .visual-card, .table-card {

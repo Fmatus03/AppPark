@@ -1,5 +1,5 @@
 <template>
-	<aside class="sidebar">
+	<aside class="sidebar" :class="{ minimized: isMinimized }">
 		<nav class="nav-bar" aria-label="Navegacion principal">
 			<RouterLink
 				v-for="item in navItems"
@@ -7,11 +7,18 @@
 				:to="item.to"
 				class="nav-item"
 				:class="{ active: navItemIsActive(item) }"
+				:title="isMinimized ? item.label : ''"
 			>
 				<ion-icon :icon="item.icon" class="nav-icon" aria-hidden="true" />
-				<span class="nav-label">{{ item.label }}</span>
+				<span class="nav-label" v-show="!isMinimized">{{ item.label }}</span>
 			</RouterLink>
 		</nav>
+
+		<div class="sidebar-footer">
+			<button class="toggle-btn" @click="toggle" :aria-label="isMinimized ? 'Expandir menú' : 'Colapsar menú'">
+				<ion-icon :icon="isMinimized ? chevronForwardOutline : chevronBackOutline" />
+			</button>
+		</div>
 	</aside>
 </template>
 
@@ -19,18 +26,12 @@
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { IonIcon } from '@ionic/vue';
-import { homeOutline, clipboardOutline, personCircleOutline } from 'ionicons/icons';
-
-type NavItem = {
-	label: string;
-	to: string;
-	icon: string;
-	match?: RegExp;
-};
-
+import { homeOutline, clipboardOutline, personCircleOutline, chevronBackOutline, chevronForwardOutline } from 'ionicons/icons';
 import { useSession } from '@/composables/useSession';
+import { useSidebar } from '@/composables/useSidebar';
 
 const { isAdmin, isAnalista } = useSession();
+const { isMinimized, toggle } = useSidebar();
 
 // Compute the three nav items based on user role. Always return exactly 3 items.
 const navItems = computed<NavItem[]>(() => {
@@ -55,6 +56,13 @@ const navItems = computed<NavItem[]>(() => {
 	const tendenciasDefault: NavItem = { label: 'Tendencias y analisis', to: '/tendenciasAnalisis', icon: clipboardOutline, match: /^\/tendenciasAnalisis/ };
 	return [home, tendenciasDefault, perfil];
 });
+
+type NavItem = {
+	label: string;
+	to: string;
+	icon: string;
+	match?: RegExp;
+};
 
 const route = useRoute();
 const activePath = computed(() => route.path);
@@ -84,6 +92,13 @@ const navItemIsActive = (item: NavItem) => {
 	align-items: stretch;
 	padding: 24px;
 	gap: 24px;
+	transition: width 0.3s ease, padding 0.3s ease;
+	z-index: 100;
+}
+
+.sidebar.minimized {
+	width: 70px;
+	padding: 24px 12px;
 }
 
 .nav-bar {
@@ -91,6 +106,7 @@ const navItemIsActive = (item: NavItem) => {
 	flex-direction: column;
 	width: 100%;
 	gap: 12px;
+	flex: 1;
 }
 
 .nav-item {
@@ -103,7 +119,14 @@ const navItemIsActive = (item: NavItem) => {
 	font-weight: 500;
 	padding: 12px 16px;
 	border-radius: var(--radius-md);
-	transition: color 0.2s ease, background-color 0.2s ease;
+	transition: color 0.2s ease, background-color 0.2s ease, padding 0.3s ease;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.sidebar.minimized .nav-item {
+	padding: 12px;
+	justify-content: center;
 }
 
 .nav-item:focus-visible {
@@ -125,10 +148,42 @@ const navItemIsActive = (item: NavItem) => {
 .nav-icon {
 	font-size: 1.6rem;
 	color: currentColor;
+	flex-shrink: 0;
 }
 
 .nav-item.active .nav-label {
 	font-weight: 600;
+}
+
+.sidebar-footer {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.sidebar.minimized .sidebar-footer {
+	justify-content: center;
+}
+
+.toggle-btn {
+	background: transparent;
+	border: none;
+	color: var(--ion-text-secondary);
+	cursor: pointer;
+	padding: 8px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 0.2s;
+}
+
+.toggle-btn:hover {
+	background-color: #f1f5f9;
+	color: var(--ion-color-primary);
+}
+
+.toggle-btn ion-icon {
+	font-size: 1.2rem;
 }
 
 @media (max-width: 1024px) {
@@ -142,15 +197,25 @@ const navItemIsActive = (item: NavItem) => {
 		box-shadow: var(--shadow-sm);
 	}
 
+	.sidebar.minimized {
+		width: 100%;
+		padding: 16px;
+	}
+
 	.nav-bar {
 		flex-direction: row;
 		justify-content: space-between;
 		max-width: 480px;
+		flex: initial;
 	}
 
 	.nav-item {
 		justify-content: center;
 		min-width: 120px;
+	}
+	
+	.sidebar-footer {
+		display: none;
 	}
 }
 </style>

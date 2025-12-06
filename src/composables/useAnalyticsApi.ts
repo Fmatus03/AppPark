@@ -44,7 +44,14 @@ export const useAnalyticsApi = (options?: UseAnalyticsApiOptions) => {
 		return data;
 	};
 
+	const getReport = async <TResponse>(endpoint: string, params?: Record<string, unknown>): Promise<TResponse> => {
+		const normalizedEndpoint = endpoint.replace(/^\/*/, '');
+		const { data } = await client.get<TResponse>(normalizedEndpoint, { params });
+		return data;
+	};
+
 	return {
 		postReport,
+		getReport,
 	};
 };
