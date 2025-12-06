@@ -677,12 +677,24 @@ const uploadIncidentWeb = async (
 
 const submitIncident = async () => {
 	if (!selectedCategory.value) {
-		console.warn('incidente-submit', { error: 'missing-category' });
+		const toast = await toastController.create({
+			message: 'Por favor, selecciona una categoría.',
+			duration: 2000,
+			color: 'warning',
+			position: 'bottom',
+		});
+		await toast.present();
 		return;
 	}
 
 	if (!incidentTitle.value || !incidentDescription.value) {
-		console.warn('incidente-submit', { error: 'missing-fields' });
+		const toast = await toastController.create({
+			message: 'Por favor, completa el título y la descripción.',
+			duration: 2000,
+			color: 'warning',
+			position: 'bottom',
+		});
+		await toast.present();
 		return;
 	}
 
@@ -750,6 +762,15 @@ const submitIncident = async () => {
 		const status = (error as { status?: number })?.status;
 		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
 		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
+
+		const errorToast = await toastController.create({
+			message: 'No se pudo enviar el incidente. Por favor, inténtalo de nuevo.',
+			duration: 3000,
+			color: 'danger',
+			position: 'bottom',
+			buttons: [{ text: 'OK', role: 'cancel' }],
+		});
+		await errorToast.present();
 	} finally {
 		isSubmitting.value = false;
 	}
