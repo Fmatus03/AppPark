@@ -1110,7 +1110,6 @@ const runReport = async <TPayload, TResponse>(endpoint: string, state: SectionSt
 			payload.fechaFin = `${payload.fechaFin}T23:59:59`;
 		}
 
-		console.log(`[${endpoint}] Payload:`, payload);
 		state.data = await postReport<TResponse>(endpoint, payload);
 	} catch (error) {
 		console.error(endpoint, error);

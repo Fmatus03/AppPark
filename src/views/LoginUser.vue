@@ -178,7 +178,6 @@ const onSubmit = async () => {
     email: email.value,
     password: password.value,
   };
-  console.log('login-submit', payload);
 
   try {
     const endpoint = `${apiBaseUrl}api/auth/login`;
@@ -235,8 +234,7 @@ const onSubmit = async () => {
         role,
         token,
       });
-
-      console.log('login-success', { correo, role, token });
+      
       const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
       try {
         const activeElement = document.activeElement as HTMLElement | null;
