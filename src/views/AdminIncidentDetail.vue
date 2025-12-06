@@ -65,7 +65,7 @@
 							</div>
 							<div class="status-column">
 								<div class="field-group">
-									<label for="route">Ruta</label>
+									<label for="route">Zona</label>
 									<div class="pill-row">
 										<span
 											class="status-pill status-route clickable-pill"
@@ -92,7 +92,8 @@
 									<label for="state">Estado</label>
 									<div class="pill-row">
 										<span
-											class="status-pill status-state clickable-pill"
+											class="status-pill clickable-pill"
+											:class="stateClass"
 											@click="openPopover('state', $event)"
 										>
 											{{ selectedStateLabel }}
@@ -220,7 +221,7 @@
 							<ion-label>{{ route.nombre }}</ion-label>
 						</ion-item>
 					</ion-list>
-					<p v-else class="popover-empty">No hay rutas disponibles.</p>
+					<p v-else class="popover-empty">No hay zonas disponibles.</p>
 				</ion-content>
 			</ion-popover>
 			<ion-modal
@@ -569,6 +570,16 @@ const selectedRouteName = computed(() => {
 const selectedStateLabel = computed(() =>
 	formatStateLabel(form.state || incident.value?.state || 'EN_REVISION')
 );
+
+const stateClass = computed(() => {
+	const s = form.state || incident.value?.state || 'EN_REVISION';
+	switch (s) {
+		case 'ABIERTO': return 'status-abierto';
+		case 'EN_REVISION': return 'status-en-revision';
+		case 'CERRADO': return 'status-cerrado';
+		default: return 'status-state';
+	}
+});
 
 const fetchRoutes = async () => {
 	if (!apiBaseUrl || !authToken.value) {
@@ -1149,18 +1160,33 @@ const deleteAudio = (audioId: number | null) => {
 }
 
 .status-category {
-	background: rgba(52, 211, 153, 0.16);
-	color: #047857;
+	background: rgba(245, 158, 11, 0.16);
+	color: #b45309;
 }
 
 .status-state {
-	background: rgba(248, 113, 113, 0.16);
+	background: rgba(148, 163, 184, 0.16);
+	color: #475569;
+}
+
+.status-abierto {
+	background: rgba(34, 197, 94, 0.16);
+	color: #15803d;
+}
+
+.status-en-revision {
+	background: rgba(59, 130, 246, 0.16);
+	color: #2563eb;
+}
+
+.status-cerrado {
+	background: rgba(239, 68, 68, 0.16);
 	color: #b91c1c;
 }
 
 .status-route {
-	background: rgba(96, 165, 250, 0.18);
-	color: #1d4ed8;
+	background: rgba(147, 51, 234, 0.16);
+	color: #7e22ce;
 }
 
 .icon-btn {

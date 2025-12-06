@@ -235,15 +235,15 @@ const formatTime = (isoDate?: Nullable<string>): string => {
 
 const formatLocation = (payload: IncidenteResponseDTO | null): string => {
 	if (!payload) {
-		return 'Sin ubicación';
+		return 'Sin zona';
 	}
 	if (typeof payload.latitud === 'number' && typeof payload.longitud === 'number') {
 		return `${payload.latitud.toFixed(6)}, ${payload.longitud.toFixed(6)}`;
 	}
 	if (payload.rutaId) {
-		return `Ruta ${payload.rutaId}`;
+		return `Zona ${payload.rutaId}`;
 	}
-	return 'Sin ubicación';
+	return 'Sin zona';
 };
 
 const buildEndpoint = (baseUrl: string, id: string): string => {
@@ -381,8 +381,8 @@ const incidentDetails = computed(() => {
 		},
 		{
 			id: 'route',
-			label: 'Ruta',
-			value: current.rutaNombre ?? 'Sin ruta asignada',
+			label: 'Zona',
+			value: current.rutaNombre ?? 'Sin zona asignada',
 			icon: locationOutline,
 		},
 		{

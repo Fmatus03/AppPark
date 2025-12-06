@@ -158,8 +158,8 @@ const filteredIncidents = computed(() => {
 
 const statusColorMap: Record<IncidentStatus, string> = {
 	abierto: 'success',
-	'en revision': 'warning',
-	cerrado: 'medium',
+	'en revision': 'primary',
+	cerrado: 'danger',
 };
 
 const statusToColor = (status: IncidentStatus) => statusColorMap[status] ?? 'medium';

@@ -87,7 +87,7 @@
 
 								<!-- Rutas Criticas -->
 								<div v-if="overviewSettings['rutas-criticas'] && overviewState.reports.rutasCriticas.data" class="overview-card wide">
-									<h4>Rutas Críticas</h4>
+									<h4>Zonas Críticas</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="rutasCriticasStackedData" type="bar" :data="rutasCriticasStackedData" :options="stackedBarOptions" :height="300" />
 									</div>
@@ -163,7 +163,7 @@
 
 								<!-- Ranking Rutas -->
 								<div v-if="overviewSettings['ranking-rutas'] && overviewState.reports.rankingTendenciaRutas.data" class="overview-card wide">
-									<h4>Ranking de Tendencia</h4>
+									<h4>Ranking de Tendencia (Zonas)</h4>
 									<div class="chart-wrapper">
 										<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="300" />
 									</div>
@@ -341,7 +341,7 @@
 								<input type="date" v-model="rutasCriticas.payload.fechaFin" class="date-input" />
 							</div>
 							<div class="control-pair">
-								<span>Top de rutas</span>
+								<span>Top de zonas</span>
 								<ion-input type="number" min="1" max="10" v-model.number="rutasCriticas.payload.top" />
 							</div>
 						</div>
@@ -356,8 +356,8 @@
 						<div v-if="rutasCriticas.data" class="visualizations">
 							<div class="kpi-grid">
 								<kpi-card label="Total incidentes" :value="rutasCriticas.data.totalIncidentes" description="Periodo seleccionado" accent="primary" />
-								<kpi-card label="Promedio por ruta" :value="rutasCriticas.data.estadisticas.promedioIncidentesPorRuta.toFixed(0)" description="Incidentes" accent="warning" />
-								<kpi-card label="Ruta más crítica" :value="rutasCriticas.data.estadisticas.rutaMasCritica" description="Mayor carga" accent="danger" />
+								<kpi-card label="Promedio por zona" :value="rutasCriticas.data.estadisticas.promedioIncidentesPorRuta.toFixed(0)" description="Incidentes" accent="warning" />
+								<kpi-card label="Zona más crítica" :value="rutasCriticas.data.estadisticas.rutaMasCritica" description="Mayor carga" accent="danger" />
 							</div>
 							<div class="visual-row">
 								<div class="visual-card">
@@ -372,7 +372,7 @@
 								<div class="table-card">
 									<div class="table-header">
 										<h4>Detalle</h4>
-										<ion-button fill="clear" size="small" @click="exportToCSV('rutas-criticas', ['Ranking', 'Ruta', 'Incidentes', '%'], rutasCriticas.data?.topRutasCriticas.map(r => [r.ranking, r.ruta.nombre, r.cantidadIncidentes, formatPercent(r.porcentaje)]) ?? [])" :disabled="!rutasCriticas.data">
+										<ion-button fill="clear" size="small" @click="exportToCSV('rutas-criticas', ['Ranking', 'Zona', 'Incidentes', '%'], rutasCriticas.data?.topRutasCriticas.map(r => [r.ranking, r.ruta.nombre, r.cantidadIncidentes, formatPercent(r.porcentaje)]) ?? [])" :disabled="!rutasCriticas.data">
 											<ion-icon :icon="downloadOutline" slot="icon-only" />
 										</ion-button>
 									</div>
@@ -380,7 +380,7 @@
 										<thead>
 											<tr>
 												<th>#</th>
-												<th>Ruta</th>
+												<th>Zona</th>
 												<th>Incidentes</th>
 												<th>%</th>
 											</tr>
@@ -449,11 +449,11 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Año base</span>
-								<ion-input type="number" v-model.number="comparacionAnual.payload.anio1" />
+								<input type="number" v-model.number="comparacionAnual.payload.anio1" class="date-input" />
 							</div>
 							<div class="control-pair">
 								<span>Año comparación</span>
-								<ion-input type="number" v-model.number="comparacionAnual.payload.anio2" />
+								<input type="number" v-model.number="comparacionAnual.payload.anio2" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -515,7 +515,7 @@
 						<div class="controls">
 							<div class="control-pair">
 								<span>Año</span>
-								<ion-input type="number" v-model.number="analisisEstacional.payload.anio" />
+								<input type="number" v-model.number="analisisEstacional.payload.anio" class="date-input" />
 							</div>
 						</div>
 						<div class="actions">
@@ -638,14 +638,14 @@
 							<div class="table-card">
 								<div class="table-header">
 									<h4>Detalle</h4>
-									<ion-button fill="clear" size="small" @click="exportToCSV('incidentes-recurrentes', ['Ruta', 'Categoría', 'Incidentes', '% del total', 'Último incidente'], incidentesRecurrentes.data?.incidentesRecurrentes.map(i => [i.ruta.nombre, i.categoria.nombre, i.cantidadIncidentes, formatPercent(i.porcentajeDelTotal), new Date(i.ultimoIncidente).toLocaleString()]) ?? [])" :disabled="!incidentesRecurrentes.data">
+									<ion-button fill="clear" size="small" @click="exportToCSV('incidentes-recurrentes', ['Zona', 'Categoría', 'Incidentes', '% del total', 'Último incidente'], incidentesRecurrentes.data?.incidentesRecurrentes.map(i => [i.ruta.nombre, i.categoria.nombre, i.cantidadIncidentes, formatPercent(i.porcentajeDelTotal), new Date(i.ultimoIncidente).toLocaleString()]) ?? [])" :disabled="!incidentesRecurrentes.data">
 										<ion-icon :icon="downloadOutline" slot="icon-only" />
 									</ion-button>
 								</div>
 								<table class="data-table">
 									<thead>
 										<tr>
-											<th>Ruta</th>
+											<th>Zona</th>
 											<th>Categoría</th>
 											<th>Incidentes</th>
 											<th>% del total</th>
@@ -698,14 +698,14 @@
 								<div class="table-card">
 									<div class="table-header">
 										<h4>Detalle</h4>
-										<ion-button fill="clear" size="small" @click="exportToCSV('comparacion-zonas', ['Ruta', 'Incidentes', '%', 'Dominante'], comparacionZonas.data?.comparacionPorZona.map(z => [z.ruta.nombre, z.totalIncidentes, formatPercent(z.porcentaje), z.categoriaDominante]) ?? [])" :disabled="!comparacionZonas.data">
+										<ion-button fill="clear" size="small" @click="exportToCSV('comparacion-zonas', ['Zona', 'Incidentes', '%', 'Dominante'], comparacionZonas.data?.comparacionPorZona.map(z => [z.ruta.nombre, z.totalIncidentes, formatPercent(z.porcentaje), z.categoriaDominante]) ?? [])" :disabled="!comparacionZonas.data">
 											<ion-icon :icon="downloadOutline" slot="icon-only" />
 										</ion-button>
 									</div>
 									<table class="data-table">
 										<thead>
 											<tr>
-												<th>Ruta</th>
+												<th>Zona</th>
 												<th>Incidentes</th>
 												<th>%</th>
 												<th>Dominante</th>
@@ -836,7 +836,7 @@
 									<thead>
 										<tr>
 											<th>#</th>
-											<th>Ruta</th>
+											<th>Zona</th>
 											<th>Total</th>
 											<th>%</th>
 											<th>Tendencia</th>
@@ -931,7 +931,7 @@
 								<table class="data-table">
 									<thead>
 										<tr>
-											<th>Ruta</th>
+											<th>Zona</th>
 											<th>Incidentes</th>
 											<th>Resueltos</th>
 											<th>Tasa de cierre</th>
@@ -1075,6 +1075,7 @@ const defaultMonthRange = () => {
 	prev.setMonth(prev.getMonth() - 1);
 	return { mes1: formatMonth(prev), mes2: formatMonth(now) };
 };
+
 const currentYear = new Date().getFullYear();
 
 // --- REPORTS STATE ---
@@ -1098,7 +1099,19 @@ const runReport = async <TPayload, TResponse>(endpoint: string, state: SectionSt
 	state.loading = true;
 	state.error = '';
 	try {
-		state.data = await postReport<TResponse>(endpoint, { ...(state.payload as Record<string, unknown>) });
+		// Clone payload to modify date strings without affecting state
+		const payload: any = { ...(state.payload as any) };
+
+		// Append default times if dates are simple YYYY-MM-DD
+		if (payload.fechaInicio && typeof payload.fechaInicio === 'string' && payload.fechaInicio.length === 10) {
+			payload.fechaInicio = `${payload.fechaInicio}T00:00:00`;
+		}
+		if (payload.fechaFin && typeof payload.fechaFin === 'string' && payload.fechaFin.length === 10) {
+			payload.fechaFin = `${payload.fechaFin}T23:59:59`;
+		}
+
+		console.log(`[${endpoint}] Payload:`, payload);
+		state.data = await postReport<TResponse>(endpoint, payload);
 	} catch (error) {
 		console.error(endpoint, error);
 		state.error = (error as Error).message ?? 'No pudimos generar el reporte.';
@@ -1378,7 +1391,7 @@ const reports = [
 	{ id: 'tendencias-categorias', label: 'Tendencias por categoría', icon: pieChartOutline },
 	{ id: 'evolucion-categorias', label: 'Evolución de categorías', icon: trendingUpOutline },
 	{ id: 'analisis-horario', label: 'Análisis por horario', icon: timeOutline },
-	{ id: 'rutas-criticas', label: 'Rutas críticas', icon: alertCircleOutline },
+	{ id: 'rutas-criticas', label: 'Zonas críticas', icon: alertCircleOutline },
 	{ id: 'comparacion-mensual', label: 'Comparación mensual', icon: calendarOutline },
 	{ id: 'comparacion-anual', label: 'Comparación anual', icon: calendarNumberOutline },
 	{ id: 'analisis-estacional', label: 'Análisis estacional', icon: leafOutline },
