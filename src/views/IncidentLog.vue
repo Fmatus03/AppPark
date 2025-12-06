@@ -197,7 +197,14 @@ import {
 	IonList,
 	IonItem,
 	IonButtons,
+	toastController,
+	alertController,
+	isPlatform
 } from '@ionic/vue';
+import { useCategories, type Category } from '@/composables/useCategories';
+import { useSession } from '@/composables/useSession';
+import { useIncidentService } from '@/composables/useIncidentService';
+import { useOfflineIncidents } from '@/composables/useOfflineIncidents';
 import {
 	documentTextOutline,
 	chatboxEllipsesOutline,
@@ -208,26 +215,28 @@ import {
 	stopCircleOutline,
 	trashOutline,
 	arrowBackOutline,
+	cloudOfflineOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
-import { HTTP } from '@awesome-cordova-plugins/http';
-import { useSession } from '@/composables/useSession';
-import { isAndroidNativeApp, parseFetchResponse, throwFetchError, parseNativeResponse } from '@/utils/httpHelpers';
-import { toastController } from '@ionic/vue';
 
-interface Category {
+type AudioEvidence = {
 	id: number;
-	nombre: string;
-}
+	dataUrl: string;
+	createdAt: string;
+	durationMs?: number;
+	name: string;
+	mimeType?: string | null;
+	base64?: string | null;
+	path?: string | null;
+};
 
 const incidentTitle = ref('');
 const incidentDescription = ref('');
 const selectedCategory = ref<Category | null>(null);
-const categories = ref<Category[]>([]);
 const evidencePhotos = ref<Photo[]>([]);
 const isCapturing = ref(false);
 const isSubmitting = ref(false);
@@ -236,10 +245,14 @@ const isRecordingAudio = ref(false);
 const isProcessingAudio = ref(false);
 const isRecordGestureActive = ref(false);
 const audioPermissionGranted = ref<boolean | null>(null);
-const router = useRouter();
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
+
+const router = useRouter();
 const { authToken } = useSession();
+const { uploadIncident } = useIncidentService();
+const { addToQueue } = useOfflineIncidents();
+const { categories, loadCategories } = useCategories();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
 
 const clearTitle = () => {
@@ -258,37 +271,10 @@ const goToHome = () => {
 	router.push('/home');
 };
 
-const fetchCategories = async () => {
-	if (!apiBaseUrl || !authToken.value) return;
-
-	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes/categorias`;
-	const headers = {
-		Accept: 'application/json',
-		Authorization: `Bearer ${authToken.value}`,
-	};
-
-	try {
-		if (isAndroidNativeApp()) {
-			const response = await HTTP.get(endpoint, {}, headers);
-			if (response.status >= 200 && response.status < 300) {
-				categories.value = parseNativeResponse<Category[]>(response.data) || [];
-			}
-		} else {
-			const response = await fetch(endpoint, { headers });
-			if (response.ok) {
-				categories.value = await response.json();
-			} else {
-				console.error('Error fetching categories:', response.statusText);
-			}
-		}
-	} catch (error) {
-		console.error('Error fetching categories:', error);
-	}
-};
-
-onMounted(() => {
-	fetchCategories();
+onMounted(async () => {
+	await loadCategories();
 });
+
 
 const addEvidencePhoto = (photo: Photo) => {
 	evidencePhotos.value = [...evidencePhotos.value, photo];
@@ -298,16 +284,7 @@ const removePhoto = (index: number) => {
 	evidencePhotos.value = evidencePhotos.value.filter((_, idx) => idx !== index);
 };
 
-type AudioEvidence = {
-	id: number;
-	dataUrl: string;
-	createdAt: string;
-	durationMs?: number;
-	name: string;
-	mimeType?: string | null;
-	base64?: string | null;
-	path?: string | null;
-};
+
 
 const ensureAudioPermission = async () => {
 	if (audioPermissionGranted.value) {
@@ -496,130 +473,11 @@ const handleRecordButtonCancel = async () => {
 	await finalizeRecordingGesture();
 };
 
-const getAudioExtension = (mime?: string | null) => {
-	if (!mime) {
-		return 'aac';
-	}
 
-	const [, subtype] = mime.split('/');
-	return subtype ? subtype.replace('+', '') : 'aac';
-};
-
-const base64ToBlob = (base64: string, mimeType: string) => {
-	const byteCharacters = atob(base64);
-	const blobParts: BlobPart[] = [];
-
-	for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
-		const slice = byteCharacters.slice(offset, offset + 1024);
-		const byteNumbers = new Array(slice.length);
-		for (let i = 0; i < slice.length; i += 1) {
-			byteNumbers[i] = slice.charCodeAt(i);
-		}
-		blobParts.push(new Uint8Array(byteNumbers));
-	}
-
-	return new Blob(blobParts, { type: mimeType });
-};
-
-const ensureWebAccessiblePath = (path?: string | null) => {
-	if (!path) {
-		return null;
-	}
-
-	if (path.startsWith('file://') || path.startsWith('content://')) {
-		return Capacitor.convertFileSrc(path);
-	}
-
-	return path;
-};
 
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
-const photoToBlob = async (photo: Photo) => {
-	if (photo.base64String) {
-		return base64ToBlob(photo.base64String, `image/${photo.format}`);
-	}
 
-	// Fallback for Web or if base64 is missing (should not happen with CameraResultType.Base64)
-	const sourceUrl = photo.webPath ?? ensureWebAccessiblePath(photo.path);
-	if (!sourceUrl) {
-		throw new Error('No se encontró la imagen.');
-	}
-
-	const response = await fetch(sourceUrl);
-	if (!response.ok) {
-		throw new Error('No se pudo procesar la imagen.');
-	}
-
-	return response.blob();
-};
-
-const audioToBlob = async (audio: AudioEvidence) => {
-	if (audio.base64) {
-		return base64ToBlob(audio.base64, audio.mimeType ?? 'audio/aac');
-	}
-
-	if (audio.dataUrl?.startsWith('data:')) {
-		const [, payload] = audio.dataUrl.split(',');
-		if (payload) {
-			return base64ToBlob(payload, audio.mimeType ?? 'audio/aac');
-		}
-	}
-
-	const webPath = ensureWebAccessiblePath(audio.path ?? undefined);
-	if (!webPath) {
-		throw new Error('No se encontró la ruta del audio.');
-	}
-
-	const response = await fetch(webPath);
-	if (!response.ok) {
-		throw new Error('No se pudo leer el archivo de audio.');
-	}
-
-	return response.blob();
-};
-
-
-const createFormData = (usePonyfill: boolean) => {
-	if (usePonyfill) {
-		const ponyfills = (HTTP as unknown as { ponyfills?: { FormData?: new () => FormData } }).ponyfills;
-		if (ponyfills?.FormData) {
-			// Ensure compatibility with older Android WebViews lacking FormData.entries support.
-			return new ponyfills.FormData() as unknown as FormData;
-		}
-	}
-	return new FormData();
-};
-
-const buildIncidentFormData = async (
-	incidentData: Record<string, unknown>,
-	usePonyfill = false
-) => {
-	const formData = createFormData(usePonyfill);
-	formData.append(
-		'incidente',
-		new Blob([JSON.stringify(incidentData)], { type: 'application/json' })
-	);
-
-	await Promise.all(
-		evidencePhotos.value.map(async (photo, index) => {
-			const blob = await photoToBlob(photo);
-			const mimeType = blob.type || 'image/jpeg';
-			const [, subtype] = mimeType.split('/');
-			const extension = subtype ? subtype.replace('+', '') : 'jpg';
-			formData.append('fotos', blob, `foto-${index + 1}.${extension}`);
-		})
-	);
-
-	await Promise.all(
-		audioEvidence.value.map(async (audio, index) => {
-			const blob = await audioToBlob(audio);
-			formData.append('audios', blob, `audio-${index + 1}.${getAudioExtension(audio.mimeType)}`);
-		})
-	);
-
-	return formData;
-};
 
 const resetForm = () => {
 	incidentTitle.value = '';
@@ -635,47 +493,10 @@ const resetForm = () => {
 	isRecordGestureActive.value = false;
 };
 
-const uploadIncidentNative = async (
-	endpoint: string,
-	headers: Record<string, string>,
-	incidentData: Record<string, unknown>
-) => {
-	const formData = await buildIncidentFormData(incidentData, true);
-	const resp = await HTTP.sendRequest(endpoint, {
-		method: 'post',
-		serializer: 'multipart',
-		headers,
-		data: formData as unknown as Record<string, unknown>,
-		responseType: 'text',
-	});
-	const status = resp?.status ?? -1;
-	const data = resp?.data ?? resp?.error ?? null;
-	if (status < 200 || status >= 300) {
-		throw { status, data };
-	}
-};
 
-const uploadIncidentWeb = async (
-	endpoint: string,
-	headers: Record<string, string>,
-	incidentData: Record<string, unknown>
-) => {
-	const formData = await buildIncidentFormData(incidentData);
-
-	const response = await fetch(endpoint, {
-		method: 'POST',
-		body: formData,
-		headers,
-	});
-
-	if (!response.ok) {
-		await throwFetchError(response);
-	}
-
-	await parseFetchResponse(response);
-};
 
 const submitIncident = async () => {
+	// 1. Validaciones básicas (rápidas)
 	if (!selectedCategory.value) {
 		const toast = await toastController.create({
 			message: 'Por favor, selecciona una categoría.',
@@ -698,51 +519,45 @@ const submitIncident = async () => {
 		return;
 	}
 
-	try {
-		const { coords } = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-		latitude.value = coords.latitude;
-		longitude.value = coords.longitude;
-	} catch (error) {
-		console.error('No se pudo obtener la ubicación del dispositivo', error);
-		return;
-	}
-
-	const incidentData = {
-		titulo: incidentTitle.value.trim(),
-		descripcion: incidentDescription.value.trim(),
-		latitud: latitude.value ?? 0,
-		longitud: longitude.value ?? 0,
-		categoriaId: selectedCategory.value.id,
-	};
-
-	if (!apiBaseUrl) {
-		console.error('incidente-submit', { error: 'missing-api-base-url' });
-		return;
-	}
-
-	const token = authToken.value;
-
-	if (!token) {
-		console.error('incidente-submit', { error: 'missing-auth-token' });
-		return;
-	}
-
-	const endpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/incidentes`;
-	const headers: Record<string, string> = {
-		Accept: 'application/json',
-		Authorization: `Bearer ${token}`,
-	};
-
-	console.info('incidente-submit', JSON.stringify(incidentData, null, 2));
-
+	// 2. Feedback inmediato (Activate spinner NOW)
 	isSubmitting.value = true;
 
 	try {
-		if (isAndroidNativeApp()) {
-			await uploadIncidentNative(endpoint, headers, incidentData);
-		} else {
-			await uploadIncidentWeb(endpoint, headers, incidentData);
+        // 3. Obtener ubicación (puede tardar, pero ya tenemos spinner)
+		// Set a timeout for location to avoid hanging indefinitely
+		let lat = 0;
+		let lng = 0;
+		try {
+			// Race between location and a 3s timeout
+			const locationPromise = Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+			const timeoutPromise = new Promise<{ coords: { latitude: number; longitude: number } }>((_, reject) => 
+				setTimeout(() => reject(new Error('Location timeout')), 3000)
+			);
+			
+			const { coords } = await Promise.race([locationPromise, timeoutPromise]);
+			lat = coords.latitude;
+			lng = coords.longitude;
+		} catch (error) {
+			console.warn('Ubicación no disponible o lenta, usando 0,0', error);
 		}
+
+		latitude.value = lat;
+		longitude.value = lng;
+
+		const incidentData = {
+			titulo: incidentTitle.value.trim(),
+			descripcion: incidentDescription.value.trim(),
+			latitud: latitude.value,
+			longitud: longitude.value,
+			categoriaId: selectedCategory.value.id,
+		};
+
+		if (!apiBaseUrl || !authToken.value) {
+			throw { status: -1, message: 'Falta configuración o sesión' }; // Treat as internal/networkish
+		}
+
+		// 4. Intentar envío
+		await uploadIncident(incidentData, evidencePhotos.value, audioEvidence.value);
 
 		console.info('incidente-submit-success');
 		
@@ -751,26 +566,70 @@ const submitIncident = async () => {
 			duration: 3000,
 			color: 'success',
 			position: 'bottom',
-			buttons: [{ text: 'OK', role: 'cancel' }],
 		});
 		await toast.present();
 
-		// Clear form so inputs, images and audios are reset
 		resetForm();
 		router.push({ name: 'Home' });
-	} catch (error) {
-		const status = (error as { status?: number })?.status;
-		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
-		console.error('incidente-submit-error', JSON.stringify({ status, data }, null, 2));
 
-		const errorToast = await toastController.create({
-			message: 'No se pudo enviar el incidente. Por favor, inténtalo de nuevo.',
-			duration: 3000,
-			color: 'danger',
-			position: 'bottom',
-			buttons: [{ text: 'OK', role: 'cancel' }],
-		});
-		await errorToast.present();
+	} catch (error: any) {
+		const status = error?.status;
+		// Determine if it's a network/connection error
+		// -1, -6 (Android native), 0 (Fetch), or undefined usually implies connectivity
+		const isNetworkError = !status || status <= 0 || status === 504;
+
+		if (isNetworkError) {
+			// 5a. Fallback Offline Automático (Seamless)
+			console.warn('Error de conexión detectado. Guardando offline...', error);
+			try {
+				const incidentData = {
+					titulo: incidentTitle.value.trim(),
+					descripcion: incidentDescription.value.trim(),
+					latitud: latitude.value ?? 0,
+					longitud: longitude.value ?? 0,
+					categoriaId: selectedCategory.value!.id,
+				};
+
+				await addToQueue({
+					data: incidentData,
+					photos: evidencePhotos.value,
+					audios: audioEvidence.value
+				});
+				
+				const toast = await toastController.create({
+					message: 'Sin conexión: Incidente guardado. Se enviará automáticamente.',
+					duration: 4000,
+					color: 'medium', // Less alarming/greenish
+					icon: 'cloud-offline-outline',
+					position: 'bottom'
+				});
+				await toast.present();
+				
+				resetForm();
+				router.push({ name: 'Home' });
+			} catch (saveError) {
+				console.error('Fatal: Error guardando offline', saveError);
+				const toast = await toastController.create({
+					message: 'Error crítico al guardar. Intenta nuevamente.',
+					duration: 3000,
+					color: 'danger',
+					position: 'bottom'
+				});
+				await toast.present();
+			}
+		} else {
+			// 5b. Error de Servidor (400, 500 real) -> Mostrar mensaje real y NO limpiar
+			const errorMsg = error?.data?.error || error?.data?.message || 'Error del servidor procesando el incidente.';
+			console.error('Server error', error);
+
+			const alert = await alertController.create({
+				header: 'No se pudo enviar',
+				message: errorMsg,
+				buttons: ['OK']
+			});
+			await alert.present();
+			// Stay in form so user can fix data
+		}
 	} finally {
 		isSubmitting.value = false;
 	}

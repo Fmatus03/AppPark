@@ -56,6 +56,12 @@
             </ion-item>
           </ion-list>
 
+          <div class="remember-me" v-if="runningOnAndroidApp">
+            <ion-checkbox :checked="rememberMe" @ionChange="onRememberChange" label-placement="end" justify="start">
+              Mantener sesión iniciada
+            </ion-checkbox>
+          </div>
+
 
 
           <ion-button
@@ -100,12 +106,14 @@ import {
   IonList,
   IonPage,
   onIonViewWillLeave,
+  type CheckboxCustomEvent
 } from '@ionic/vue';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { closeCircle, eye, eyeOff, lockClosed, mailOutline } from 'ionicons/icons';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 import { UserRole, useSession } from '@/composables/useSession';
+import { useCategories } from '@/composables/useCategories';
 import { HTTP } from '@awesome-cordova-plugins/http';
 import { isAndroidNativeApp, parseNativeResponse } from '@/utils/httpHelpers';
 
@@ -122,9 +130,49 @@ const showPassword = ref(false);
 const isSubmitting = ref(false);
 const errorMessage = ref('');
 const runningOnAndroidApp = ref(isAndroidNativeApp());
+const rememberMe = ref(false);
 
-const { login: setSessionUser } = useSession();
+const { login: setSessionUser, currentUser } = useSession();
+const { loadCategories } = useCategories();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL;
+
+// Auto-redirect if session becomes available (e.g. loaded from storage)
+import { watch } from 'vue';
+
+const handleAutoLogin = async () => {
+    console.log('handleAutoLogin: Checking session...', currentUser.value);
+    if (currentUser.value) {
+        try {
+            console.log('handleAutoLogin: Session found. Loading categories...');
+            // Ensure categories are loaded for offline use
+            await loadCategories();
+            console.log('handleAutoLogin: Categories loaded (or failed gracefully). Redirecting...');
+            
+            const role = currentUser.value.role;
+            const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
+            console.log('handleAutoLogin: Navigating to', nextRoute);
+            router.replace(nextRoute);
+        } catch (error) {
+            console.error('handleAutoLogin: Error during auto-login sequence', error);
+            // Even if something fails (e.g. categories), we should probably still try to redirect or let them stay on login?
+            // If session exists but categories fail, maybe we should still let them in?
+            const role = currentUser.value.role;
+             const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
+             router.replace(nextRoute);
+        }
+    } else {
+        console.log('handleAutoLogin: No session found.');
+    }
+};
+
+watch(currentUser, () => {
+    handleAutoLogin();
+});
+
+// Also check on mount in case it loaded fast
+onMounted(() => {
+    handleAutoLogin();
+});
 
 const normalizeRole = (value: unknown): UserRole => {
   if (typeof value === 'string') {
@@ -142,7 +190,7 @@ const resetForm = () => {
   showPassword.value = false;
   isSubmitting.value = false;
   errorMessage.value = '';
-
+  // Don't reset rememberMe ideally, or default to false
 };
 
 const forgotPassword = () => {
@@ -160,6 +208,10 @@ const clearEmail = () => {
 
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
+};
+
+const onRememberChange = (e: CheckboxCustomEvent) => {
+  rememberMe.value = e.detail.checked;
 };
 
 onIonViewWillLeave(() => {
@@ -209,9 +261,6 @@ const onSubmit = async () => {
       const token = data.token as string;
       const role = normalizeRole(data.rol);
 
-      // Platform-based access rules:
-      // - Android native app: only allow VISITANTE
-      // - Web (non-native): only allow ADMIN or ANALISTA
       if (runningOnAndroidApp.value) {
         if (role !== 'VISITANTE') {
           errorMessage.value = 'Acceso denegado';
@@ -226,22 +275,20 @@ const onSubmit = async () => {
         }
       }
 
-      // Persist session only after role is authorized
       const username = correo.split('@')[0] ?? 'Usuario';
-      setSessionUser({
+      
+      // Save session with rememberMe preference
+      await setSessionUser({
         id: correo,
         name: username,
         role,
         token,
-      });
+      }, rememberMe.value);
+      
+      // Load categories immediately to cache them
+      await loadCategories();
       
       const nextRoute = role === 'ADMIN' ? { name: 'AdminHome' } : role === 'ANALISTA' ? { name: 'AnalistaHome' } : { name: 'Home' };
-      try {
-        const activeElement = document.activeElement as HTMLElement | null;
-        activeElement?.blur();
-      } catch (error) {
-        console.debug('login-blur-skip', error);
-      }
       resetForm();
       router.push(nextRoute);
       return;
@@ -375,5 +422,16 @@ const onSubmit = async () => {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+.remember-me {
+  margin-top: -0.5rem;
+  padding-left: 0.5rem;
+}
+
+.remember-me ion-checkbox {
+  --size: 18px;
+  font-size: 0.9rem;
+  --label-color: var(--ion-text-color);
 }
 </style>

@@ -37,8 +37,20 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const session = useSession();
+
+  // Wait for session to be ready only if route requires auth
+  // This allows the Login page to render immediately while session checks in background
+  if (!session.isReady.value) {
+    if (to.meta.requiresAuth) {
+      await session.loadUser();
+    } else {
+      // Trigger load but don't await, let page render
+      session.loadUser();
+    }
+  }
+
   const user = session.currentUser.value;
 
   const getDefaultRouteForUser = (u: { role?: string } | null) => {
