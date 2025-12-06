@@ -108,7 +108,7 @@ type UsuarioPerfilDTO = {
 };
 
 const router = useRouter();
-const { authToken, logout } = useSession();
+const { authToken, logout, currentUser } = useSession();
 const apiBaseUrl = import.meta.env.VITE_PARK_APP_API_URL ?? '';
 
 const currentUserProfile = ref<UsuarioPerfilDTO | null>(null);
@@ -165,8 +165,25 @@ const handleUnauthorized = () => {
 };
 
 const loadProfile = async () => {
+	// First initialize with session data if available (Offline support)
+	if (currentUser.value) {
+		currentUserProfile.value = {
+			id: 0, // Placeholder if id is not in session
+			nombre: currentUser.value.name,
+			email: currentUser.value.id, // we stored email in id in Login
+			rol: currentUser.value.role
+		};
+	}
+
 	isLoading.value = true;
 	errorMessage.value = '';
+	
+	const status = await import('@capacitor/network').then(m => m.Network.getStatus());
+	if (!status.connected) {
+		isLoading.value = false;
+		return;
+	}
+
 	try {
 		const payload = isAndroidNativeApp()
 			? await requestProfileWithCordova()
@@ -179,13 +196,24 @@ const loadProfile = async () => {
 			handleUnauthorized();
 			return;
 		}
-		errorMessage.value = 'No pudimos cargar tu perfil. Intenta nuevamente en unos segundos.';
+		// Don't show error if we have session data showed already
+		if (!currentUserProfile.value) {
+			errorMessage.value = 'No pudimos cargar tu perfil. Intenta nuevamente en unos segundos.';
+		}
 	} finally {
 		isLoading.value = false;
 	}
 };
 
-onMounted(loadProfile);
+onMounted(() => {
+	// currentUser is reactive from useSession, usage in template should be fine
+	// but we map it to component state in loadProfile
+	if (!currentUser.value) {
+		// Session might not be ready if navigated directly (though router guards prevent this)
+		// Watch or wait logic could be added if needed, but router handles it.
+	}
+	loadProfile();
+});
 
 const normalizeInitials = (name?: string) => {
 	if (!name) {

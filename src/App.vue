@@ -14,8 +14,12 @@ import SideBar from './components/SideBar.vue';
 import { useSession } from './composables/useSession';
 import { useSidebar } from './composables/useSidebar';
 
+import { onMounted } from 'vue';
+import { useOfflineIncidents } from './composables/useOfflineIncidents';
+
 const { isAuthenticated, isAdmin, isVisitante, isAnalista } = useSession();
 const { isMinimized } = useSidebar();
+const { initNetworkListener } = useOfflineIncidents();
 
 const shouldShowNavBar = computed(() => isAuthenticated.value && isVisitante.value);
 const shouldShowSidebar = computed(() => isAuthenticated.value && (isAdmin.value || isAnalista.value));
@@ -25,6 +29,10 @@ const appClasses = computed(() => ({
   'has-sidebar': shouldShowSidebar.value,
   'sidebar-minimized': isMinimized.value,
 }));
+
+onMounted(() => {
+  initNetworkListener();
+});
 </script>
 
 <style>
