@@ -13,6 +13,7 @@ import IncidentDetail from '@/views/IncidentDetail.vue';
 import AdminHome from '@/views/AdminHome.vue';
 import TendenciasAnalisis from '../views/TendenciasAnalisis.vue';
 import ProfileUser from '@/views/ProfileUser.vue';
+import AnalistHome from '@/views/AnalistHome.vue';
 
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/login' },
@@ -21,14 +22,14 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/home', name: 'Home', component: HomeUser, meta: { requiresAuth: true } },
   { path: '/incidentLog', name: 'IncidentLog', component: IncidentLog, meta: { requiresAuth: true } },
   { path: '/myIncidents', name: 'MyIncidents', component: MyIncidents, meta: { requiresAuth: true } },
-  { path: '/incidentDetail', name: 'IncidentDetail', component: IncidentDetail , meta: { requiresAuth: true } },
+  { path: '/incidentDetail', name: 'IncidentDetail', component: IncidentDetail, meta: { requiresAuth: true } },
   { path: '/profile', name: 'Profile', component: ProfileUser, meta: { requiresAuth: true } },
   { path: '/bar-test', name: 'BarTest', component: () => import('../views/BarTest.vue'), meta: { requiresAuth: true } },
   { path: '/adminHome', name: 'AdminHome', component: AdminHome, meta: { requiresAuth: true } },
   { path: '/adminIncidentDetail', name: 'AdminIncidentDetail', component: AdminIncidentDetail, meta: { requiresAuth: true } },
   { path: '/adminIncidentManagment', name: 'AdminIncidentManagment', component: IncidentManagment, meta: { requiresAuth: true } },
   { path: '/tendenciasAnalisis', name: 'TendenciasAnalisis', component: TendenciasAnalisis, meta: { requiresAuth: true } },
-  { path: '/analistaHome', name: 'AnalistaHome', component: HomePage, meta: { requiresAuth: true } },
+  { path: '/analistaHome', name: 'AnalistaHome', component: AnalistHome, meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({
