@@ -109,16 +109,16 @@
 					<!-- Resumen por Ruta -->
 					<section class="dashboard-card">
 						<div class="card-header">
-							<h2>Por Ruta</h2>
+							<h2>Por Zona</h2>
 							<span class="badge">{{ totalRuta }} Total</span>
 						</div>
 						<div class="chart-container" v-if="rutaChartData">
-							<analytics-chart type="bar" :data="rutaChartData" :options="barOptions" :height="250" title="Resumen por Ruta" />
+							<analytics-chart type="bar" :data="rutaChartData" :options="barOptions" :height="250" title="Resumen por Zona" />
 						</div>
 						<div class="table-container">
 							<div class="table-actions">
 							<div class="table-actions">
-								<button class="icon-btn" @click="downloadCsv('resumen-ruta', ['Ruta', 'Cantidad', '%'], resumenRuta?.map(d => [d.rutaNombre, d.cantidad, d.porcentaje.toFixed(1) + '%']) ?? [])" title="Descargar CSV">
+								<button class="icon-btn" @click="downloadCsv('resumen-ruta', ['Zona', 'Cantidad', '%'], resumenRuta?.map(d => [d.rutaNombre, d.cantidad, d.porcentaje.toFixed(1) + '%']) ?? [])" title="Descargar CSV">
 									<ion-icon :icon="downloadOutline" />
 								</button>
 							</div>
@@ -126,7 +126,7 @@
 							<table>
 								<thead>
 									<tr>
-										<th>Ruta</th>
+										<th>Zona</th>
 										<th>Cant.</th>
 										<th>%</th>
 									</tr>

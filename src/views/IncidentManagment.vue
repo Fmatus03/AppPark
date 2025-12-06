@@ -28,9 +28,9 @@
 							<input id="filter-date-end" v-model="workingFilters.fechaFin" type="date" />
 						</div>
 						<div class="field-group">
-							<label for="filter-route">Ruta</label>
+							<label for="filter-route">Zona</label>
 							<select id="filter-route" v-model="workingFilters.routeId">
-								<option value="all">Todas las rutas</option>
+								<option value="all">Todas las zonas</option>
 								<option v-for="route in routes" :key="route.id" :value="String(route.id)">
 									{{ route.nombre }}
 								</option>
@@ -806,8 +806,8 @@ tbody tr:hover {
 }
 
 .status-review {
-	background: rgba(129, 140, 248, 0.16);
-	color: #4338ca;
+	background: rgba(59, 130, 246, 0.16);
+	color: #2563eb;
 }
 
 .status-closed {
