@@ -8,17 +8,18 @@
 		<ion-content :fullscreen="true">
 			<div class="mapa-incidentes">
 				<div class="mapa-incidentes__controls">
-					<div class="date-range-info">
-						<p>
-							Últimos 7 días
-							<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
-						</p>
+					<!-- Date fields and button are now direct siblings for better flex alignment -->
+					<div class="date-field">
+						<label for="date-start">Desde</label>
+						<input id="date-start" v-model="fechaInicio" type="date" />
 					</div>
-					<div class="mapa-incidentes__actions">
-						<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
-							{{ loading ? 'Actualizando…' : 'Recargar' }}
-						</button>
+					<div class="date-field">
+						<label for="date-end">Hasta</label>
+						<input id="date-end" v-model="fechaFin" type="date" />
 					</div>
+					<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
+						{{ loading ? 'Actualizando…' : 'Aplicar' }}
+					</button>
 				</div>
 				<section class="mapa-incidentes__status" v-if="!resolvedToken">
 					<p>Inicia sesión para visualizar los incidentes.</p>
@@ -56,13 +57,6 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useSession } from '@/composables/useSession';
 import router from '@/router';
 
-/*
-README — MapaIncidentes
-- Token: pass it via the optional `token` prop or rely on the session store (`useSession`) that injects the current bearer token automatically.
-- API base: configure VITE_PARK_APP_API_URL in your .env file (e.g. http://api.example.com/).
-- Default map center/zoom: (-38.739, -72.598) with zoom 15 when no markers are available.
-- Acceptance criteria covered: fetch list (7 days) on mount, markers rely on list lat/lon, popups show Title/Category/Status/Date, skip markers without coordinates, always add Bearer token, clustering is omitted.
-*/
 
 type IncidentMapItem = {
 	id: number;
@@ -167,8 +161,8 @@ export default defineComponent({
 			this.$nextTick(() => {
 				this.initializeMap();
 				if (this.resolvedToken) {
-					void this.loadIncidents();
 					void this.fetchZones();
+					void this.loadIncidents();
 				}
 			});
 		},
@@ -480,18 +474,34 @@ export default defineComponent({
 
 .mapa-incidentes__controls {
 	display: flex;
-	justify-content: space-between;
-	align-items: center;
+	justify-content: flex-start;
+	align-items: flex-end;
 	gap: 12px;
 	flex-wrap: wrap;
 }
 
-.mapa-incidentes__actions {
+.date-field {
 	display: flex;
-	justify-content: flex-end;
+	flex-direction: column;
+	gap: 4px;
 }
 
-.mapa-incidentes__actions button {
+.date-field label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #64748b;
+}
+
+.date-field input {
+	border: 1px solid #cbd5e1;
+	border-radius: 8px;
+	padding: 6px 10px;
+	font-size: 0.9rem;
+	color: #334155;
+	background: white;
+}
+
+.mapa-incidentes__controls button {
 	border: none;
 	border-radius: 999px;
 	padding: 8px 20px;
@@ -500,14 +510,15 @@ export default defineComponent({
 	font-weight: 600;
 	cursor: pointer;
 	transition: background-color 0.2s, opacity 0.2s;
+	height: 38px;
 }
 
-.mapa-incidentes__actions button:disabled {
+.mapa-incidentes__controls button:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
 }
 
-.mapa-incidentes__actions button:not(:disabled):hover {
+.mapa-incidentes__controls button:not(:disabled):hover {
 	background: #1d4ed8;
 }
 
@@ -528,9 +539,9 @@ export default defineComponent({
 
 .mapa-incidentes__map-wrapper {
 	position: relative;
-	min-height: 70vh;
-	max-height: 75vh;
-	min-width: 70%;
+	min-height: 80vh;
+	max-height: 80vh;
+	min-width: 95%;
 	aspect-ratio: 1 / 1;
 	border-radius: 16px;
 	overflow: hidden;

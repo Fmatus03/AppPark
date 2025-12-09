@@ -57,10 +57,9 @@
 									<input id="date" v-model="form.date" type="date" readonly />
 									<p class="field-hint">Solo lectura</p>
 								</div>
-								<div class="field-group description-field">
-									<label for="description">Descripción</label>
-									<textarea id="description" v-model="form.description" rows="4" readonly></textarea>
-									<p class="field-hint">La descripción se actualiza desde el reporte original.</p>
+								<div class="field-group map-group" v-if="incident?.latitude && incident?.longitude">
+									<label>Ubicación</label>
+									<div id="mini-map" class="mini-map"></div>
 								</div>
 							</div>
 							<div class="status-column">
@@ -68,7 +67,9 @@
 									<label for="route">Zona</label>
 									<div class="pill-row">
 										<span
-											class="status-pill status-route clickable-pill"
+											class="status-pill clickable-pill"
+											:class="{ 'status-route': !hasRouteColor }"
+											:style="selectedRouteColorStyle"
 											@click="openPopover('route', $event)"
 										>
 											{{ selectedRouteName }}
@@ -101,9 +102,9 @@
 										</span>
 									</div>
 								</div>
-								<div class="field-group map-group" v-if="incident?.latitude && incident?.longitude">
-									<label>Ubicación</label>
-									<div id="mini-map" class="mini-map"></div>
+								<div class="field-group description-field">
+									<label for="description">Descripción</label>
+									<textarea id="description" v-model="form.description" rows="4" readonly></textarea>
 								</div>
 							</div>
 						</div>
@@ -280,6 +281,17 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
+const ZONE_COLORS = [
+	'#3b82f6', // blue-500
+	'#ef4444', // red-500
+	'#10b981', // emerald-500
+	'#f59e0b', // amber-500
+	'#8b5cf6', // violet-500
+	'#ec4899', // pink-500
+	'#06b6d4', // cyan-500
+	'#84cc16', // lime-500
+];
+
 type EstadoIncidente = 'ABIERTO' | 'EN_REVISION' | 'CERRADO' | string;
 
 type BackendMedia =
@@ -308,6 +320,17 @@ type IncidentAudio = {
 	id: number | null;
 	url: string;
 	description?: string;
+};
+
+type Coordinate = {
+	latitud: number;
+	longitud: number;
+};
+
+type RouteZone = {
+	id: number;
+	nombre: string;
+	coordenadas: Coordinate[];
 };
 
 type IncidentDetail = {
@@ -347,6 +370,8 @@ const isImageModalOpen = ref(false);
 const selectedImage = ref<string | null>(null);
 const map = ref<L.Map | null>(null);
 const mapContainer = ref<HTMLElement | null>(null);
+const zones = ref<RouteZone[]>([]);
+const polygons = ref<L.Polygon[]>([]);
 
 const openImageModal = (image: string) => {
 	selectedImage.value = image;
@@ -567,6 +592,28 @@ const selectedRouteName = computed(() => {
 	);
 });
 
+const selectedRouteColorStyle = computed(() => {
+	if (!form.routeId || !zones.value.length) {
+		return {};
+	}
+	const routeId = Number(form.routeId);
+	const index = zones.value.findIndex((z) => z.id === routeId);
+	if (index === -1) {
+		return {};
+	}
+	const color = ZONE_COLORS[index % ZONE_COLORS.length];
+	return {
+		backgroundColor: `${color}29 !important`, // ~16% opacity
+		color: `${color} !important`,
+	};
+});
+
+const hasRouteColor = computed(() => {
+	if (!form.routeId || !zones.value.length) return false;
+	const routeId = Number(form.routeId);
+	return zones.value.some((z) => z.id === routeId);
+});
+
 const selectedStateLabel = computed(() =>
 	formatStateLabel(form.state || incident.value?.state || 'EN_REVISION')
 );
@@ -676,6 +723,8 @@ const loadIncidentData = async () => {
 	}
 	await fetchReferenceData();
 	await fetchIncidentDetail();
+	// Fetch zones in parallel or sequence, doesn't block main detail but needed for map
+	await fetchZones();
 	if (incidentId.value) {
 		await fetchIncidentLocation(incidentId.value);
 	}
@@ -696,6 +745,53 @@ const fetchIncidentLocation = async (id: number) => {
 	}
 };
 
+const fetchZones = async () => {
+	if (!authToken.value || !apiBaseUrl) return;
+	try {
+		const response = await axios.get<RouteZone[]>(`${apiBaseUrl}/api/admin/incidentes/rutas-con-geometria`, {
+			headers: buildAuthHeaders(),
+		});
+		zones.value = Array.isArray(response.data) ? response.data : [];
+		// If map is already initialized, draw zones now
+		if (map.value) {
+			drawZones();
+		}
+	} catch (error) {
+		console.error('fetch-zones-error', error);
+	}
+};
+
+const drawZones = () => {
+	if (!map.value || !zones.value.length) return;
+
+	// Clear existing polygons
+	polygons.value.forEach((polygon) => polygon.remove());
+	polygons.value = [];
+
+	zones.value.forEach((zone, index) => {
+		if (!zone.coordenadas || zone.coordenadas.length < 3) return;
+
+		const latLngs = zone.coordenadas.map((coord) => [coord.latitud, coord.longitud] as [number, number]);
+		const color = ZONE_COLORS[index % ZONE_COLORS.length];
+
+		const polygon = L.polygon(latLngs, {
+			color: color,
+			fillColor: color,
+			fillOpacity: 0.2,
+			weight: 2,
+		});
+
+		polygon.bindTooltip(zone.nombre, {
+			permanent: false,
+			direction: 'center',
+			className: 'zone-tooltip',
+		});
+
+		polygon.addTo(map.value as L.Map);
+		polygons.value.push(polygon);
+	});
+};
+
 const initMap = () => {
 	if (!incident.value?.latitude || !incident.value?.longitude) return;
 
@@ -707,10 +803,13 @@ const initMap = () => {
 		shadowUrl: markerShadow,
 	});
 
-	if (map.value) {
-		map.value.remove();
-		map.value = null;
-	}
+		// Cleaning up map is handled in beforeUnmount/ionViewDidLeave
+		// but we should also clear polygons ref
+		polygons.value = [];
+		if (map.value) {
+			map.value.remove();
+			map.value = null;
+		}
 
 	setTimeout(() => {
 		const el = document.getElementById('mini-map');
@@ -730,6 +829,8 @@ const initMap = () => {
 		L.marker([incident.value!.latitude!, incident.value!.longitude!]).addTo(newMap);
 		
 		map.value = newMap;
+		// Try drawing zones if they are already fetched
+		drawZones();
 	}, 200);
 };
 
@@ -859,7 +960,7 @@ const onGuardar = async () => {
 			await action();
 		}
 
-		await fetchIncidentDetail();
+		await loadIncidentData();
 		await showToast('Cambios guardados correctamente.');
 	} catch (error) {
 		console.error('admin-incident-update-error', error);
@@ -1134,7 +1235,7 @@ const deleteAudio = (audioId: number | null) => {
 
 .field-group textarea {
 	resize: vertical;
-	min-height: 300px;
+	min-height: 220px;
 	max-width: 500px;
 }
 
@@ -1185,8 +1286,8 @@ const deleteAudio = (audioId: number | null) => {
 }
 
 .status-route {
-	background: rgba(147, 51, 234, 0.16);
-	color: #7e22ce;
+	background: rgba(148, 163, 184, 0.16);
+	color: #475569;
 }
 
 .icon-btn {
@@ -1389,7 +1490,7 @@ const deleteAudio = (audioId: number | null) => {
 
 /* Map */
 .mini-map {
-	height: 200px;
+	height: 300px;
 	width: 85%;
 	border-radius: 16px;
 	margin-top: 16px;
