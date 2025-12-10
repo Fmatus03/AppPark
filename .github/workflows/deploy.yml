@@ -15,6 +15,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_PROD }}" > .env
+
       - name: Build Docker image
         run: |
           docker build -t app-park-frontend:latest .
