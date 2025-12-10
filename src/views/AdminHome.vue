@@ -8,17 +8,18 @@
 		<ion-content :fullscreen="true">
 			<div class="mapa-incidentes">
 				<div class="mapa-incidentes__controls">
-					<div class="date-range-info">
-						<p>
-							Últimos 7 días
-							<span v-if="fechaInicio && fechaFin">({{ fechaInicio }} → {{ fechaFin }})</span>
-						</p>
+					<!-- Date fields and button are now direct siblings for better flex alignment -->
+					<div class="date-field">
+						<label for="date-start">Desde</label>
+						<input id="date-start" v-model="fechaInicio" type="date" />
 					</div>
-					<div class="mapa-incidentes__actions">
-						<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
-							{{ loading ? 'Actualizando…' : 'Recargar' }}
-						</button>
+					<div class="date-field">
+						<label for="date-end">Hasta</label>
+						<input id="date-end" v-model="fechaFin" type="date" />
 					</div>
+					<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
+						{{ loading ? 'Actualizando…' : 'Aplicar' }}
+					</button>
 				</div>
 				<section class="mapa-incidentes__status" v-if="!resolvedToken">
 					<p>Inicia sesión para visualizar los incidentes.</p>
@@ -50,19 +51,15 @@ import { IonContent, IonPage, IonSpinner } from '@ionic/vue';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet.markercluster';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useSession } from '@/composables/useSession';
 import router from '@/router';
 
-/*
-README — MapaIncidentes
-- Token: pass it via the optional `token` prop or rely on the session store (`useSession`) that injects the current bearer token automatically.
-- API base: configure VITE_PARK_APP_API_URL in your .env file (e.g. http://api.example.com/).
-- Default map center/zoom: (-38.739, -72.598) with zoom 15 when no markers are available.
-- Acceptance criteria covered: fetch list (7 days) on mount, markers rely on list lat/lon, popups show Title/Category/Status/Date, skip markers without coordinates, always add Bearer token, clustering is omitted.
-*/
 
 type IncidentMapItem = {
 	id: number;
@@ -72,6 +69,7 @@ type IncidentMapItem = {
 	estado?: string;
 	latitud?: number;
 	longitud?: number;
+	// clustering properties if needed
 };
 
 type Coordinate = {
@@ -117,6 +115,7 @@ export default defineComponent({
 			error: '',
 			map: null as L.Map | null,
 			markers: [] as L.Marker[],
+			markerCluster: null as L.MarkerClusterGroup | null,
 			polygons: [] as L.Polygon[],
 			incidents: [] as IncidentMapItem[],
 			zones: [] as RouteZone[],
@@ -124,6 +123,7 @@ export default defineComponent({
 			fechaFin: '',
 			center: { lat: -38.739, lng: -72.598 },
 			zoom: 15,
+			currentZoom: 15,
 			mapContainer: null as HTMLDivElement | null,
 			baseUrl: (import.meta.env.VITE_PARK_APP_API_URL ?? '').replace(/\/$/, ''),
 		};
@@ -167,8 +167,8 @@ export default defineComponent({
 			this.$nextTick(() => {
 				this.initializeMap();
 				if (this.resolvedToken) {
-					void this.loadIncidents();
 					void this.fetchZones();
+					void this.loadIncidents();
 				}
 			});
 		},
@@ -191,6 +191,7 @@ export default defineComponent({
 			this.fechaFin = format(today);
 			this.fechaInicio = format(sevenDaysAgo);
 		},
+
 		// Prepares the Leaflet map instance once the DOM node is available.
 		initializeMap() {
 			// Safety: if a map instance exists, remove it first to avoid double initialization
@@ -206,6 +207,12 @@ export default defineComponent({
 			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 				attribution: '&copy; OpenStreetMap contributors',
 			}).addTo(mapInstance);
+
+			// Init MarkerClusterGroup
+			this.markerCluster = L.markerClusterGroup({
+				chunkedLoading: true, // Optimizes performance for large sets
+			});
+			this.map.addLayer(this.markerCluster as any);
 		},
 		// Returns the HTTP headers including the Authorization bearer token.
 		buildHeaders() {
@@ -214,8 +221,13 @@ export default defineComponent({
 				Accept: 'application/json',
 			};
 		},
+
 		// Fetches the list of incidents for the map with coordinates.
 		async fetchMapIncidents(): Promise<IncidentMapItem[]> {
+			// Guard against uninitialized dates
+			if (!this.fechaInicio || !this.fechaFin) {
+				return [];
+			}
 			const response = await axios.get<IncidentMapItem[]>(`${this.baseUrl}/api/admin/incidentes/mapa`, {
 				headers: this.buildHeaders(),
 				params: {
@@ -269,12 +281,16 @@ export default defineComponent({
 				this.polygons.push(polygon);
 			});
 		},
-		// Clears any previous leaflet markers from the map.
+        // Clears any previous leaflet markers from the map.
 		clearMarkers() {
+			if (this.markerCluster) {
+				this.markerCluster.clearLayers();
+			}
+			// Fallback if needed, though we primarily use cluster now
 			this.markers.forEach((marker) => marker.remove());
 			this.markers = [];
 		},
-		// Destroys the Leaflet map and resets DOM container.
+        // Destroys the Leaflet map and resets DOM container.
 		destroyMap() {
 			try {
 				this.clearMarkers();
@@ -282,12 +298,16 @@ export default defineComponent({
 				this.polygons = [];
 				if (this.map) {
 					try {
-						this.map.off();
+						this.map.off(); // Remove all listeners
+						if (this.markerCluster) {
+							this.map.removeLayer(this.markerCluster as any);
+						}
 						this.map.remove();
 					} catch (error) {
 						console.warn('leaflet-destroy-error', error);
 					}
 					this.map = null;
+					this.markerCluster = null;
 				}
 				const container = this.$refs.mapContainer as HTMLDivElement | undefined;
 				if (container) {
@@ -297,14 +317,31 @@ export default defineComponent({
 				console.warn('map-destroy-error', error);
 			}
 		},
+
+		// Helper to return the standard marker icon
+		getMarkerIcon() {
+			return L.icon({
+				iconUrl: markerIcon,
+				iconRetinaUrl: markerIcon2x,
+				shadowUrl: markerShadow,
+				iconSize: [25, 41],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34],
+				shadowSize: [41, 41],
+			});
+		},
+
 		// Creates a marker with a structured popup card and attaches it to the map.
 		createMarker(incident: IncidentMapItem) {
-			if (!this.map || typeof incident.latitud !== 'number' || typeof incident.longitud !== 'number') {
+			if (!this.map || !this.markerCluster || typeof incident.latitud !== 'number' || typeof incident.longitud !== 'number') {
 				return;
 			}
-			const marker = L.marker([incident.latitud, incident.longitud]);
+			
+			const icon = this.getMarkerIcon();
+			const marker = L.marker([incident.latitud, incident.longitud], { icon: icon });
 
 			// Build popup HTML (plain HTML — do NOT mount Vue inside)
+
 			const popupHtml = `
 				<div class="leaflet-popup-card" role="alertdialog" aria-labelledby="inc-title-${incident.id}">
 					<div class="card-row">
@@ -351,7 +388,9 @@ export default defineComponent({
 			marker.on('popupopen', onPopupOpen);
 			marker.on('popupclose', onPopupClose);
 
-			marker.addTo(this.map as L.Map);
+			// Add to CLUSTER instead of MAP directly
+			this.markerCluster.addLayer(marker);
+			// Keep track for scaling/updates
 			this.markers.push(marker);
 		},
 		// Programmatic navigation helper (used by popup button)
@@ -414,11 +453,12 @@ export default defineComponent({
 				if (!list.length) {
 					this.incidents = [];
 					this.clearMarkers();
-					this.fitMapToMarkers();
+					// Swallow error if fitBounds fails for empty list
+					try { this.fitMapToMarkers(); } catch (_) { /* ignore */ }
 					return;
 				}
 				
-				const validIncidents = list.filter((item) => {
+				const validIncidents = list.filter((item: IncidentMapItem) => {
 					return (
 						item !== null &&
 						typeof item.latitud === 'number' &&
@@ -427,8 +467,12 @@ export default defineComponent({
 				});
 				this.incidents = validIncidents;
 				this.clearMarkers();
-				validIncidents.forEach((incident) => this.createMarker(incident));
-				this.fitMapToMarkers();
+				validIncidents.forEach((incident: IncidentMapItem) => this.createMarker(incident));
+				try {
+					this.fitMapToMarkers();
+				} catch (err) {
+					console.warn('fit-bounds-error', err);
+				}
 			} catch (error) {
 				console.error('incident-map-load-error', error);
 				this.error = 'No pudimos cargar los incidentes. Intenta nuevamente.';
@@ -480,18 +524,34 @@ export default defineComponent({
 
 .mapa-incidentes__controls {
 	display: flex;
-	justify-content: space-between;
-	align-items: center;
+	justify-content: flex-start;
+	align-items: flex-end;
 	gap: 12px;
 	flex-wrap: wrap;
 }
 
-.mapa-incidentes__actions {
+.date-field {
 	display: flex;
-	justify-content: flex-end;
+	flex-direction: column;
+	gap: 4px;
 }
 
-.mapa-incidentes__actions button {
+.date-field label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #64748b;
+}
+
+.date-field input {
+	border: 1px solid #cbd5e1;
+	border-radius: 8px;
+	padding: 6px 10px;
+	font-size: 0.9rem;
+	color: #334155;
+	background: white;
+}
+
+.mapa-incidentes__controls button {
 	border: none;
 	border-radius: 999px;
 	padding: 8px 20px;
@@ -500,14 +560,15 @@ export default defineComponent({
 	font-weight: 600;
 	cursor: pointer;
 	transition: background-color 0.2s, opacity 0.2s;
+	height: 38px;
 }
 
-.mapa-incidentes__actions button:disabled {
+.mapa-incidentes__controls button:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
 }
 
-.mapa-incidentes__actions button:not(:disabled):hover {
+.mapa-incidentes__controls button:not(:disabled):hover {
 	background: #1d4ed8;
 }
 
@@ -528,9 +589,9 @@ export default defineComponent({
 
 .mapa-incidentes__map-wrapper {
 	position: relative;
-	min-height: 70vh;
-	max-height: 75vh;
-	min-width: 70%;
+	min-height: 80vh;
+	max-height: 80vh;
+	min-width: 95%;
 	aspect-ratio: 1 / 1;
 	border-radius: 16px;
 	overflow: hidden;
@@ -546,23 +607,26 @@ export default defineComponent({
 
 .mapa-incidentes__overlay {
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background: rgba(255, 255, 255, 0.85);
+	top: 12px;
+	right: 12px;
+	/* Removed full coverage */
+	background: rgba(255, 255, 255, 0.9);
+	padding: 8px 16px;
+	border-radius: 999px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	display: flex;
-	flex-direction: column;
+	flex-direction: row; /* Horizontal layout */
 	align-items: center;
 	justify-content: center;
-	z-index: 10;
-	gap: 12px;
+	z-index: 1000; /* Ensure it's above map controls */
+	gap: 8px;
+	pointer-events: none; /* Let clicks pass through if needed, though usually it's small enough */
 }
 
 .spinner {
-	width: 36px;
-	height: 36px;
-	border: 4px solid #bfdbfe;
+	width: 20px;
+	height: 20px;
+	border: 2px solid #bfdbfe;
 	border-top-color: #2563eb;
 	border-radius: 50%;
 	animation: spin 1s linear infinite;
