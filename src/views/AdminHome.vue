@@ -375,8 +375,8 @@ export default defineComponent({
 						<h3>${props.title}</h3>
 						<p><strong>Estado:</strong> ${props.status}</p>
 						<p><strong>Categoría:</strong> ${props.category}</p>
-						<p class="date">${props.date}</p>
-						<button class="btn-detail" onclick="window.location.href='/admin/incident-detail?id=${props.id}'" style="margin-top:8px; padding:4px 8px; cursor:pointer;">Ver Detalle</button>
+						<p class="date"><strong>Fecha:</strong>${props.date}</p>
+						<button class="btn-detail" onclick="onClickDetail(${props.id})" style="margin-top:8px; padding:4px 8px; cursor:pointer;">Ver Detalle</button>
 					</div>
 				`;
 				
@@ -400,6 +400,10 @@ export default defineComponent({
 			this.map.on('mouseleave', 'clusters', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
 			this.map.on('mouseenter', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; });
 			this.map.on('mouseleave', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
+		},
+
+		onClickDetail(id: string) {
+			router.push({ name: 'AdminIncidentDetail', query: { id } });
 		},
 		buildHeaders() {
 			return {
@@ -590,9 +594,10 @@ export default defineComponent({
 				this.updateMapWithZones(zones);
 			}
 		},
-		onReload() {
+		async onReload() {
 			// Forced reload from UI
-			void this.fetchAllDataAndCache();
+			await this.fetchAllDataAndCache();
+			this.fitMapToBounds();
 		},
 		onDateChange() {
 			// Do nothing -> wait for apply
