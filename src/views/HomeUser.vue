@@ -7,7 +7,7 @@
     </IonHeader>
 		<IonContent fullscreen class="map-content">
 			<div class="map-container" v-if="!isOffline">
-				<div ref="mapRef" class="leaflet-map"></div>
+				<div ref="mapRef" class="map-element"></div>
 			</div>
 			
 			<div class="offline-container" v-else>
@@ -26,19 +26,19 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, IonTitle, IonToolbar } from '@ionic/vue';
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, IonTitle, IonToolbar, onIonViewWillLeave } from '@ionic/vue';
 import { Geolocation, type CallbackID } from '@capacitor/geolocation';
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, markRaw, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { add, cloudOfflineOutline } from 'ionicons/icons';
 import { Network } from '@capacitor/network';
 
 const mapRef = ref<HTMLDivElement | null>(null);
 let watchId: CallbackID | null = null;
-let map: L.Map | null = null;
-let marker: L.Marker | null = null;
+const map = ref<maplibregl.Map | null>(null);
+const marker = ref<maplibregl.Marker | null>(null);
 const router = useRouter();
 const isOffline = ref(false);
 
@@ -46,35 +46,59 @@ const goToIncidentLog = () => {
 	router.push({ name: 'IncidentLog' });
 };
 
-const defaultIcon = L.icon({
-	iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).toString(),
-	iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).toString(),
-	shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).toString(),
-	iconSize: [25, 41],
-	iconAnchor: [12, 41],
-	popupAnchor: [1, -34],
-	shadowSize: [41, 41],
-});
-
 const ensureMap = (lat: number, lng: number) => {
 	if (isOffline.value || !mapRef.value) {
 		return;
 	}
 
-	if (!map) {
+	if (!map.value) {
 		try {
-			map = L.map(mapRef.value).setView([lat, lng], 16);
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution: '&copy; OpenStreetMap contributors',
-				maxZoom: 19,
-			}).addTo(map);
-			marker = L.marker([lat, lng], { icon: defaultIcon }).addTo(map);
+			const osmStyle = {
+				version: 8,
+				sources: {
+					osm: {
+						type: 'raster',
+						tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+						tileSize: 256,
+						attribution: '&copy; OpenStreetMap Contributors',
+						maxzoom: 19,
+					},
+				},
+				layers: [
+					{
+						id: 'osm',
+						type: 'raster',
+						source: 'osm',
+					},
+				],
+			};
+
+			const newMap = new maplibregl.Map({
+				container: mapRef.value,
+				style: osmStyle as any,
+				center: [lng, lat],
+				zoom: 15,
+			});
+			map.value = markRaw(newMap);
+
+			const newMarker = new maplibregl.Marker({ color: '#2563eb' })
+				.setLngLat([lng, lat])
+				.addTo(newMap);
+			marker.value = markRaw(newMarker);
+			
+			newMap.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
 		} catch (error) {
 			console.error('Map init error', error);
 		}
 	} else {
-		map.setView([lat, lng], map.getZoom());
-		marker?.setLatLng([lat, lng]);
+		// Only fly if distance is significant to avoid jitter
+		const current = map.value.getCenter();
+		const dist = Math.sqrt(Math.pow(current.lng - lng, 2) + Math.pow(current.lat - lat, 2));
+		if (dist > 0.0001) {
+			map.value.flyTo({ center: [lng, lat], zoom: 16 });
+			marker.value?.setLngLat([lng, lat]);
+		}
 	}
 };
 
@@ -112,8 +136,6 @@ const stopTracking = async () => {
 	}
 };
 
-import { nextTick } from 'vue';
-
 const checkNetwork = async () => {
 	const status = await Network.getStatus();
 	isOffline.value = !status.connected;
@@ -127,10 +149,10 @@ const checkNetwork = async () => {
 			console.log('Connection recovered, re-initializing map...');
 			
 			// Clean up old map instance if needed
-			if (map) {
-				map.remove();
-				map = null;
-				marker = null;
+			if (map.value) {
+				map.value.remove();
+				map.value = null;
+				marker.value = null;
 			}
 
 			// Wait for v-if to render the map div
@@ -150,16 +172,25 @@ const checkNetwork = async () => {
 
 onMounted(async () => {
 	await checkNetwork();
+	// Init map immediately with default center (Temuco)
+	// This ensures map is visible even if GPS is slow
+	ensureMap(-38.739, -72.598);
 	startTracking();
 });
 
-onBeforeUnmount(async () => {
+const cleanup = async () => {
 	await stopTracking();
-	map?.remove();
-	map = null;
-	marker = null;
+	if (map.value) {
+		map.value.remove();
+		map.value = null;
+	}
+	marker.value = null;
 	await Network.removeAllListeners();
-});
+};
+
+onBeforeUnmount(cleanup);
+onIonViewWillLeave(cleanup); 
+
 </script>
 
 <style scoped>
@@ -179,7 +210,7 @@ onBeforeUnmount(async () => {
 	width: 100%;
 }
 
-.leaflet-map {
+.map-element {
 	height: 100%;
 	width: 100%;
 }

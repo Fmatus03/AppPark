@@ -248,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch, onBeforeUnmount, shallowRef } from 'vue';
 import {
 	IonContent,
 	IonHeader,
@@ -275,11 +275,9 @@ import { createOutline, trashOutline, chevronDownOutline } from 'ionicons/icons'
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { useSession } from '@/composables/useSession';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import type { FeatureCollection } from 'geojson';
 
 const ZONE_COLORS = [
 	'#3b82f6', // blue-500
@@ -368,10 +366,8 @@ const deletedPhotoIds = ref<number[]>([]);
 const deletedAudioIds = ref<number[]>([]);
 const isImageModalOpen = ref(false);
 const selectedImage = ref<string | null>(null);
-const map = ref<L.Map | null>(null);
-const mapContainer = ref<HTMLElement | null>(null);
+const map = shallowRef<maplibregl.Map | null>(null);
 const zones = ref<RouteZone[]>([]);
-const polygons = ref<L.Polygon[]>([]);
 
 const openImageModal = (image: string) => {
 	selectedImage.value = image;
@@ -752,87 +748,178 @@ const fetchZones = async () => {
 			headers: buildAuthHeaders(),
 		});
 		zones.value = Array.isArray(response.data) ? response.data : [];
-		// If map is already initialized, draw zones now
-		if (map.value) {
-			drawZones();
+		// Update map if it exists
+		if (map.value && map.value.loaded()) {
+			updateZonesSource();
 		}
 	} catch (error) {
 		console.error('fetch-zones-error', error);
 	}
 };
 
-const drawZones = () => {
+const updateZonesSource = () => {
 	if (!map.value || !zones.value.length) return;
-
-	// Clear existing polygons
-	polygons.value.forEach((polygon) => polygon.remove());
-	polygons.value = [];
-
-	zones.value.forEach((zone, index) => {
-		if (!zone.coordenadas || zone.coordenadas.length < 3) return;
-
-		const latLngs = zone.coordenadas.map((coord) => [coord.latitud, coord.longitud] as [number, number]);
-		const color = ZONE_COLORS[index % ZONE_COLORS.length];
-
-		const polygon = L.polygon(latLngs, {
-			color: color,
-			fillColor: color,
-			fillOpacity: 0.2,
-			weight: 2,
+	
+	const features = zones.value
+		.filter(z => z.coordenadas && z.coordenadas.length >= 3)
+		.map((z, idx) => {
+			const ring = z.coordenadas.map(c => [c.longitud, c.latitud]);
+			// Ensure ring is closed
+			if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+				ring.push(ring[0]);
+			}
+			return {
+				type: 'Feature',
+				properties: {
+					title: z.nombre,
+					color: ZONE_COLORS[idx % ZONE_COLORS.length],
+				},
+				geometry: {
+					type: 'Polygon',
+					coordinates: [ring],
+				},
+			};
 		});
 
-		polygon.bindTooltip(zone.nombre, {
-			permanent: false,
-			direction: 'center',
-			className: 'zone-tooltip',
+	const source = map.value.getSource('zones') as maplibregl.GeoJSONSource;
+	if (source) {
+		source.setData({
+			type: 'FeatureCollection',
+			features: features as any,
 		});
-
-		polygon.addTo(map.value as L.Map);
-		polygons.value.push(polygon);
-	});
+	}
 };
 
 const initMap = () => {
 	if (!incident.value?.latitude || !incident.value?.longitude) return;
-
-	// Fix icons
-	delete (L.Icon.Default.prototype as any)._getIconUrl;
-	L.Icon.Default.mergeOptions({
-		iconRetinaUrl: markerIcon2x,
-		iconUrl: markerIcon,
-		shadowUrl: markerShadow,
-	});
-
-		// Cleaning up map is handled in beforeUnmount/ionViewDidLeave
-		// but we should also clear polygons ref
-		polygons.value = [];
-		if (map.value) {
-			map.value.remove();
-			map.value = null;
+	if (map.value) {
+		// Just update center and marker
+		map.value.setCenter([incident.value.longitude, incident.value.latitude]);
+		map.value.setZoom(15);
+		// Update marker
+		const source = map.value.getSource('incident-point') as maplibregl.GeoJSONSource;
+		if (source) {
+			source.setData({
+				type: 'FeatureCollection',
+				features: [{
+					type: 'Feature',
+					properties: {},
+					geometry: {
+						type: 'Point',
+						coordinates: [incident.value.longitude, incident.value.latitude],
+					},
+				}],
+			});
 		}
+		return;
+	}
 
 	setTimeout(() => {
 		const el = document.getElementById('mini-map');
 		if (!el) return;
 
-		const newMap = L.map('mini-map', {
-			center: [incident.value!.latitude!, incident.value!.longitude!],
+		const lat = incident.value!.latitude!;
+		const lng = incident.value!.longitude!;
+
+		const osmStyle = {
+			version: 8,
+			sources: {
+				osm: {
+					type: 'raster',
+					tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+					tileSize: 256,
+					attribution: '&copy; OpenStreetMap Contributors',
+					maxzoom: 19,
+				},
+			},
+			layers: [
+				{
+					id: 'osm',
+					type: 'raster',
+					source: 'osm',
+				},
+			],
+		};
+
+		map.value = new maplibregl.Map({
+			container: 'mini-map',
+			style: osmStyle as any,
+			center: [lng, lat],
 			zoom: 15,
-			zoomControl: true,
-			attributionControl: false,
 		});
 
-		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			attribution: '&copy; OpenStreetMap contributors',
-		}).addTo(newMap);
+		map.value.on('load', () => {
+			if (!map.value) return;
+			// 1. Add Zone Source and Layers
+			map.value.addSource('zones', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features: [] },
+			});
+			map.value.addLayer({
+				id: 'zones-fill',
+				type: 'fill',
+				source: 'zones',
+				paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 },
+			});
+			map.value.addLayer({
+				id: 'zones-line',
+				type: 'line',
+				source: 'zones',
+				paint: { 'line-color': ['get', 'color'], 'line-width': 2 },
+			});
 
-		L.marker([incident.value!.latitude!, incident.value!.longitude!]).addTo(newMap);
-		
-		map.value = newMap;
-		// Try drawing zones if they are already fetched
-		drawZones();
+			if (zones.value.length) {
+				updateZonesSource();
+			}
+
+			// 2. Add Incident Point Source and Layer
+			map.value.addSource('incident-point', {
+				type: 'geojson',
+				data: {
+					type: 'FeatureCollection',
+					features: [{
+						type: 'Feature',
+						properties: {},
+						geometry: {
+							type: 'Point',
+							coordinates: [lng, lat],
+						},
+					}],
+				},
+			});
+
+			map.value.addLayer({
+				id: 'incident-marker-halo',
+				type: 'circle',
+				source: 'incident-point',
+				paint: {
+					'circle-radius': 12,
+					'circle-color': '#3b82f6',
+					'circle-opacity': 0.3,
+				},
+			});
+
+			map.value.addLayer({
+				id: 'incident-marker-core',
+				type: 'circle',
+				source: 'incident-point',
+				paint: {
+					'circle-radius': 6,
+					'circle-color': '#2563eb',
+					'circle-stroke-width': 2,
+					'circle-stroke-color': '#ffffff',
+				},
+			});
+		});
 	}, 200);
 };
+
+onBeforeUnmount(() => {
+	if (map.value) {
+		map.value.remove();
+		map.value = null;
+	}
+});
 
 const reloadIncident = () => {
 	if (!isLoading.value) {

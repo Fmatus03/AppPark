@@ -1,44 +1,43 @@
 <template>
 	<ion-page class="admin-home-page">
-		<ion-header class="ion-no-border">
-			<ion-toolbar>
-				<ion-title>Mapa de incidentes</ion-title>
-			</ion-toolbar>
-		</ion-header>
 		<ion-content :fullscreen="true">
 			<div class="mapa-incidentes">
-				<div class="mapa-incidentes__controls">
-					<!-- Date fields and button are now direct siblings for better flex alignment -->
-					<div class="date-field">
-						<label for="date-start">Desde</label>
-						<input id="date-start" v-model="fechaInicio" type="date" />
+				<div class="mapa-incidentes__header">
+					<div class="header-top">
+						<h1>Mapa de Incidentes</h1>
+						<div class="header-actions">
+							<div class="date-inputs">
+								<ion-item class="date-item" lines="none">
+									<ion-label position="stacked">Desde</ion-label>
+									<ion-input type="date" v-model="fechaInicio" @ionChange="onDateChange"></ion-input>
+								</ion-item>
+								<ion-item class="date-item" lines="none">
+									<ion-label position="stacked">Hasta</ion-label>
+									<ion-input type="date" v-model="fechaFin" @ionChange="onDateChange"></ion-input>
+								</ion-item>
+							</div>
+							<ion-button @click="onReload" size="small" fill="outline">
+								<ion-icon :icon="refreshOutline" slot="start"></ion-icon>
+								Aplicar
+							</ion-button>
+						</div>
 					</div>
-					<div class="date-field">
-						<label for="date-end">Hasta</label>
-						<input id="date-end" v-model="fechaFin" type="date" />
-					</div>
-					<button type="button" @click="onReload" :disabled="loading || !resolvedToken">
-						{{ loading ? 'Actualizando…' : 'Aplicar' }}
-					</button>
+					<p class="subtitle">Visualiza y analiza los reportes en terreno</p>
 				</div>
-				<section class="mapa-incidentes__status" v-if="!resolvedToken">
-					<p>Inicia sesión para visualizar los incidentes.</p>
-				</section>
 
-				<section class="mapa-incidentes__status" v-else-if="error && !loading">
-					<p class="error">{{ error }}</p>
-				</section>
-
-				<section class="mapa-incidentes__status" v-else-if="!loading && incidents.length === 0">
-					<p>No se encontraron incidentes en los últimos 7 días.</p>
-				</section>
-
-				<div class="mapa-incidentes__map-wrapper">
+				<div class="mapa-container-wrapper">
+					<div ref="mapContainer" class="mapa-container"></div>
+					
+					<!-- Loading Badge -->
 					<div v-if="loading" class="mapa-incidentes__overlay">
-						<ion-spinner name="lines-small" />
-						<p>Cargando incidentes…</p>
+						<div class="spinner"></div>
+						<span>Cargando datos...</span>
 					</div>
-					<div ref="mapContainer" class="mapa-incidentes__map"></div>
+
+					<!-- Error Message -->
+					<div v-if="error" class="error-badge">
+						{{ error }}
+					</div>
 				</div>
 			</div>
 		</ion-content>
@@ -46,45 +45,48 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { IonContent, IonPage, IonSpinner } from '@ionic/vue';
+import { defineComponent, markRaw } from 'vue';
+import {
+	IonPage,
+	IonContent,
+	IonItem,
+	IonLabel,
+	IonInput,
+	IonButton,
+	IonIcon,
+} from '@ionic/vue';
+import { refreshOutline } from 'ionicons/icons';
 import axios from 'axios';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import 'leaflet.markercluster';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { useSession } from '@/composables/useSession';
 import router from '@/router';
+import { useSession } from '@/composables/useSession';
+import { useAdminMapStore } from '@/composables/useAdminMapStore';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import type { FeatureCollection } from 'geojson';
 
-
-type IncidentMapItem = {
-	id: number;
-	titulo: string;
-	categoriaNombre?: string;
-	fechaReporte?: string;
-	estado?: string;
-	latitud?: number;
-	longitud?: number;
-	// clustering properties if needed
-};
-
-type Coordinate = {
+// Interfaces match existing backend types
+interface Coordinate {
 	latitud: number;
 	longitud: number;
-};
+}
 
-type RouteZone = {
+interface IncidentMapItem {
+	id: number;
+	latitud: number;
+	longitud: number;
+	titulo: string;
+	estado: string;
+	fechaReporte: string;
+	categoriaNombre: string;
+}
+
+interface RouteZone {
 	id: number;
 	nombre: string;
 	coordenadas: Coordinate[];
-};
+}
 
-const session = useSession();
-
+// Zone Colors Palette
 const ZONE_COLORS = [
 	'#3b82f6', // blue-500
 	'#ef4444', // red-500
@@ -93,576 +95,602 @@ const ZONE_COLORS = [
 	'#8b5cf6', // violet-500
 	'#ec4899', // pink-500
 	'#06b6d4', // cyan-500
-	'#84cc16', // lime-500
 ];
 
 export default defineComponent({
-	name: 'MapaIncidentes',
+	name: 'AdminHome',
 	components: {
-		IonContent,
 		IonPage,
-		IonSpinner,
+		IonContent,
+		IonItem,
+		IonLabel,
+		IonInput,
+		IonButton,
+		IonIcon,
 	},
-	props: {
-		token: {
-			type: String,
-			default: '',
-		},
+	setup() {
+		const { authToken } = useSession();
+		const adminStore = useAdminMapStore();
+		return {
+			refreshOutline,
+			authToken,
+			adminStore,
+		};
 	},
 	data() {
 		return {
 			loading: false,
 			error: '',
-			map: null as L.Map | null,
-			markers: [] as L.Marker[],
-			markerCluster: null as L.MarkerClusterGroup | null,
-			polygons: [] as L.Polygon[],
-			incidents: [] as IncidentMapItem[],
+			map: null as any, // Cast to any or maplibregl.Map but handled with markRaw
+			// We store data in GeoJSON format to feed the source
+			incidentsGeoJson: {
+				type: 'FeatureCollection',
+				features: [],
+			} as FeatureCollection,
 			zones: [] as RouteZone[],
 			fechaInicio: '',
 			fechaFin: '',
-			center: { lat: -38.739, lng: -72.598 },
-			zoom: 15,
-			currentZoom: 15,
+			center: { lat: -38.739, lng: -72.598 }, // Temuco center
+			zoom: 13,
 			mapContainer: null as HTMLDivElement | null,
+			// Base URL logic same as before
 			baseUrl: (import.meta.env.VITE_PARK_APP_API_URL ?? '').replace(/\/$/, ''),
 		};
 	},
 	computed: {
 		resolvedToken(): string | null {
-			if (this.token) {
-				return this.token;
-			}
-			return session.authToken.value ?? null;
+			// Access session context
+			return this.authToken ?? null;
 		},
 	},
 	watch: {
-		resolvedToken(newToken: string | null, oldToken: string | null) {
-			if (newToken && newToken !== oldToken) {
-				void this.loadIncidents();
-				void this.fetchZones();
+		resolvedToken(newToken: string | null) {
+			if (newToken && this.map) {
+				void this.loadOrFetchData();
 			}
 		},
 	},
 	mounted() {
-		this.calculateDates();
-		this.initializeIconFix();
+		this.restoreOrCalculateDates();
 		this.bootstrapMap();
 	},
-
 	beforeUnmount() {
 		this.destroyMap();
 	},
 	methods: {
-		// When the view becomes active again, rebuild the map from scratch.
 		ionViewDidEnter() {
-			this.bootstrapMap();
+			// If map is missing or context lost, rebuild
+			if (!this.map) {
+				this.bootstrapMap();
+			}
 		},
-		// Ionic lifecycle hook to ensure teardown even when view is cached.
 		ionViewDidLeave() {
-			this.destroyMap();
+			// Optional: destroy map to save GPU resources if caching allows
+			// For now we keep it unless explicit destruction required
 		},
-		// Shared bootstrapper to init the map after DOM updates.
 		bootstrapMap() {
 			this.$nextTick(() => {
 				this.initializeMap();
+			});
+		},
+		restoreOrCalculateDates() {
+			if (this.adminStore.state.hasLoaded) {
+				// Restore from cache
+				this.fechaInicio = this.adminStore.state.fechaInicio;
+				this.fechaFin = this.adminStore.state.fechaFin;
+			} else {
+				// Calculate defaults
+				const today = new Date();
+				const sevenDaysAgo = new Date();
+				sevenDaysAgo.setDate(today.getDate() - 7);
+				const format = (value: Date) => value.toISOString().slice(0, 10);
+				this.fechaFin = format(today);
+				this.fechaInicio = format(sevenDaysAgo);
+			}
+		},
+		initializeMap() {
+			const container = this.$refs.mapContainer as HTMLDivElement | undefined;
+			if (!container) return;
+			if (this.map) return; // Already inited
+
+			const osmStyle = {
+				version: 8,
+				sources: {
+					osm: {
+						type: 'raster',
+						tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+						tileSize: 256,
+						attribution: '&copy; OpenStreetMap Contributors',
+						maxzoom: 19,
+					},
+				},
+				layers: [
+					{
+						id: 'osm',
+						type: 'raster',
+						source: 'osm',
+					},
+				],
+			};
+
+			this.map = markRaw(new maplibregl.Map({
+				container: container,
+				style: osmStyle as any,
+				center: [this.center.lng, this.center.lat],
+				zoom: this.zoom,
+			}));
+
+			this.map.on('load', () => {
+				this.initializeLayers();
 				if (this.resolvedToken) {
-					void this.fetchZones();
-					void this.loadIncidents();
+					void this.loadOrFetchData();
 				}
 			});
-		},
-		// Ensures Leaflet default markers load correctly under Vite asset handling.
-		initializeIconFix() {
-			const proto = (L.Icon.Default.prototype as L.Icon.Default);
-			delete (proto as { _getIconUrl?: unknown })._getIconUrl;
-			L.Icon.Default.mergeOptions({
-				iconRetinaUrl: markerIcon2x,
-				iconUrl: markerIcon,
-				shadowUrl: markerShadow,
-			});
-		},
-		// Builds the ISO date range used by the backend (today and seven days ago).
-		calculateDates() {
-			const today = new Date();
-			const sevenDaysAgo = new Date();
-			sevenDaysAgo.setDate(today.getDate() - 7);
-			const format = (value: Date) => value.toISOString().slice(0, 10);
-			this.fechaFin = format(today);
-			this.fechaInicio = format(sevenDaysAgo);
-		},
 
-		// Prepares the Leaflet map instance once the DOM node is available.
-		initializeMap() {
-			// Safety: if a map instance exists, remove it first to avoid double initialization
-			if (this.map) {
-				this.destroyMap();
-			}
-			const container = this.$refs.mapContainer as HTMLDivElement | undefined;
-			if (!container) {
-				return;
-			}
-			this.map = L.map(container).setView([this.center.lat, this.center.lng], this.zoom);
-			const mapInstance = this.map as L.Map;
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution: '&copy; OpenStreetMap contributors',
-			}).addTo(mapInstance);
-
-			// Init MarkerClusterGroup
-			this.markerCluster = L.markerClusterGroup({
-				chunkedLoading: true, // Optimizes performance for large sets
-			});
-			this.map.addLayer(this.markerCluster as any);
+			this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
 		},
-		// Returns the HTTP headers including the Authorization bearer token.
+		initializeLayers() {
+			if (!this.map) return;
+
+			// --- ZONES SOURCE & LAYERS ---
+			this.map.addSource('zones', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features: [] },
+			});
+			// Fill layer for zones
+			this.map.addLayer({
+				id: 'zones-fill',
+				type: 'fill',
+				source: 'zones',
+				paint: {
+					'fill-color': ['get', 'color'],
+					'fill-opacity': 0.2,
+				},
+			});
+			// Outline layer for zones
+			this.map.addLayer({
+				id: 'zones-line',
+				type: 'line',
+				source: 'zones',
+				paint: {
+					'line-color': ['get', 'color'],
+					'line-width': 2,
+				},
+			});
+			// Zone Labels
+			this.map.addLayer({
+				id: 'zones-label',
+				type: 'symbol',
+				source: 'zones',
+				layout: {
+					'text-field': ['get', 'title'],
+					'text-size': 12,
+					'text-offset': [0, 0],
+					'text-anchor': 'center',
+				},
+				paint: {
+					'text-color': '#333333',
+					'text-halo-color': '#ffffff',
+					'text-halo-width': 1,
+				},
+			});
+
+			// --- INCIDENTS SOURCE & CLUSTERS ---
+			this.map.addSource('incidents', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features: [] },
+				cluster: true,
+				clusterMaxZoom: 14, // Max zoom to cluster points on
+				clusterRadius: 50, // Radius of each cluster when clustering points (defaults to 50)
+			});
+
+			// 1. Clusters Circles
+			this.map.addLayer({
+				id: 'clusters',
+				type: 'circle',
+				source: 'incidents',
+				filter: ['has', 'point_count'],
+				paint: {
+					'circle-color': [
+						'step',
+						['get', 'point_count'],
+						'#51bbd6', // Blue for small count
+						100,
+						'#f1f075', // Yellow for > 100
+						750,
+						'#f28cb1', // Pink for > 750
+					],
+					'circle-radius': [
+						'step',
+						['get', 'point_count'],
+						20, // radius px
+						100,
+						30,
+						750,
+						40,
+					],
+				},
+			});
+
+			// 2. Cluster Counts
+			this.map.addLayer({
+				id: 'cluster-count',
+				type: 'symbol',
+				source: 'incidents',
+				filter: ['has', 'point_count'],
+				layout: {
+					'text-field': '{point_count_abbreviated}',
+					'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'], // Standard font or available stack
+					'text-size': 12,
+				},
+			});
+
+			// 3. Unclustered Points (Individual Incidents)
+			this.map.addLayer({
+				id: 'unclustered-point',
+				type: 'circle',
+				source: 'incidents',
+				filter: ['!', ['has', 'point_count']],
+				paint: {
+					'circle-color': '#11b4da',
+					'circle-radius': 8,
+					'circle-stroke-width': 1,
+					'circle-stroke-color': '#fff',
+				},
+			});
+
+			// --- EVENTS ---
+			
+			// Click cluster to zoom
+			this.map.on('click', 'clusters', async (e: any) => {
+				const features = this.map?.queryRenderedFeatures(e.point, {
+					layers: ['clusters'],
+				});
+				const clusterId = features?.[0].properties.cluster_id;
+				const source = this.map?.getSource('incidents') as maplibregl.GeoJSONSource;
+				
+				const zoom = await source.getClusterExpansionZoom(clusterId);
+				this.map?.easeTo({
+					center: (features?.[0].geometry as any).coordinates,
+					zoom: zoom,
+				});
+			});
+
+			// Click individual point to show detail
+			this.map.on('click', 'unclustered-point', (e: any) => {
+				if (!e.features?.length) return;
+				const feature = e.features[0];
+				if (!feature.properties) return;
+				const props = feature.properties;
+				const coordinates = (feature.geometry as any).coordinates.slice();
+
+				// Ensure popup appears over the point even if zoomed out
+				while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+					coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+				}
+
+				// Create popup HTML
+				const description = `
+					<div class="map-popup">
+						<h3>${props.title}</h3>
+						<p><strong>Estado:</strong> ${props.status}</p>
+						<p><strong>Categoría:</strong> ${props.category}</p>
+						<p class="date">${props.date}</p>
+						<button class="btn-detail" onclick="window.location.href='/admin/incident-detail?id=${props.id}'" style="margin-top:8px; padding:4px 8px; cursor:pointer;">Ver Detalle</button>
+					</div>
+				`;
+				
+				new maplibregl.Popup()
+					.setLngLat(coordinates)
+					.setHTML(description)
+					.addTo(this.map!);
+					
+				// Add manual listener for router push button
+				setTimeout(() => {
+					const btn = document.querySelector('.btn-detail');
+					btn?.addEventListener('click', (ev) => {
+						ev.preventDefault();
+						router.push({ name: 'AdminIncidentDetail', query: { id: String(props.id) } });
+					});
+				}, 100);
+			});
+
+			// Cursor pointer
+			this.map.on('mouseenter', 'clusters', () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; });
+			this.map.on('mouseleave', 'clusters', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
+			this.map.on('mouseenter', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; });
+			this.map.on('mouseleave', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
+		},
 		buildHeaders() {
 			return {
 				Authorization: `Bearer ${this.resolvedToken}`,
 				Accept: 'application/json',
 			};
 		},
+		fitMapToBounds() {
+			if (!this.map) return;
+			const bounds = new maplibregl.LngLatBounds();
+			let hasPoints = false;
 
-		// Fetches the list of incidents for the map with coordinates.
-		async fetchMapIncidents(): Promise<IncidentMapItem[]> {
-			// Guard against uninitialized dates
-			if (!this.fechaInicio || !this.fechaFin) {
-				return [];
+			// Add incidents to bounds
+			const incidents = this.incidentsGeoJson.features; // Access local reactive copy or store? 
+			// We should rely on what's in the store or local data structure.
+			// incidentsGeoJson is updated in fetch/apply.
+			if (this.incidentsGeoJson && this.incidentsGeoJson.features) {
+				this.incidentsGeoJson.features.forEach((f: any) => {
+					if (f.geometry && f.geometry.coordinates) {
+						bounds.extend(f.geometry.coordinates as [number, number]);
+						hasPoints = true;
+					}
+				});
 			}
-			const response = await axios.get<IncidentMapItem[]>(`${this.baseUrl}/api/admin/incidentes/mapa`, {
-				headers: this.buildHeaders(),
-				params: {
-					fechaInicio: this.fechaInicio,
-					fechaFin: this.fechaFin,
-				},
-			});
-			return Array.isArray(response.data) ? response.data : [];
+
+			// If no incidents, try zones
+			if (!hasPoints) {
+				// We need to iterate over zones. Local zones array or map source?
+				// Local 'zones' array is RouteZone[], let's use that.
+				this.zones.forEach(z => {
+					if (z.coordenadas) {
+						z.coordenadas.forEach(c => {
+							bounds.extend([c.longitud, c.latitud]);
+							hasPoints = true;
+						});
+					}
+				});
+			}
+
+			if (hasPoints) {
+				this.map.fitBounds(bounds, { padding: 50, maxZoom: 16 });
+			}
 		},
-		// Fetches the route zones (polygons) from the backend.
 		async fetchZones() {
-			if (!this.resolvedToken || !this.baseUrl) return;
+			if (!this.resolvedToken) return;
 			try {
 				const response = await axios.get<RouteZone[]>(`${this.baseUrl}/api/admin/incidentes/rutas-con-geometria`, {
 					headers: this.buildHeaders(),
 				});
-				this.zones = Array.isArray(response.data) ? response.data : [];
-				this.drawZones();
-			} catch (error) {
-				console.error('fetch-zones-error', error);
+				const zonesData = Array.isArray(response.data) ? response.data : [];
+				
+				this.updateMapWithZones(zonesData);
+				// Cache raw zones
+				this.adminStore.setZones(zonesData);
+
+			} catch (e) {
+				console.warn('error fetching zones', e);
 			}
 		},
-		// Draws the zone polygons on the map.
-		drawZones() {
-			if (!this.map || !this.zones.length) return;
-
-			// Clear existing polygons
-			this.polygons.forEach((polygon) => polygon.remove());
-			this.polygons = [];
-
-			this.zones.forEach((zone, index) => {
-				if (!zone.coordenadas || zone.coordenadas.length < 3) return;
-
-				const latLngs = zone.coordenadas.map((coord) => [coord.latitud, coord.longitud] as [number, number]);
-				const color = ZONE_COLORS[index % ZONE_COLORS.length];
-
-				const polygon = L.polygon(latLngs, {
-					color: color,
-					fillColor: color,
-					fillOpacity: 0.2,
-					weight: 2,
-				});
-
-				polygon.bindTooltip(zone.nombre, {
-					permanent: false,
-					direction: 'center',
-					className: 'zone-tooltip',
-				});
-
-				polygon.addTo(this.map as L.Map);
-				this.polygons.push(polygon);
-			});
-		},
-        // Clears any previous leaflet markers from the map.
-		clearMarkers() {
-			if (this.markerCluster) {
-				this.markerCluster.clearLayers();
-			}
-			// Fallback if needed, though we primarily use cluster now
-			this.markers.forEach((marker) => marker.remove());
-			this.markers = [];
-		},
-        // Destroys the Leaflet map and resets DOM container.
-		destroyMap() {
-			try {
-				this.clearMarkers();
-				this.polygons.forEach((polygon) => polygon.remove());
-				this.polygons = [];
-				if (this.map) {
-					try {
-						this.map.off(); // Remove all listeners
-						if (this.markerCluster) {
-							this.map.removeLayer(this.markerCluster as any);
-						}
-						this.map.remove();
-					} catch (error) {
-						console.warn('leaflet-destroy-error', error);
+		updateMapWithZones(zones: RouteZone[]) {
+			if (!this.map) return;
+			this.zones = zones; // Keep local ref for bounds
+			const features = zones
+				.filter(z => z.coordenadas && z.coordenadas.length >= 3)
+				.map((z, idx) => {
+					const ring = z.coordenadas.map(c => [c.longitud, c.latitud]);
+					if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+						ring.push(ring[0]);
 					}
-					this.map = null;
-					this.markerCluster = null;
-				}
-				const container = this.$refs.mapContainer as HTMLDivElement | undefined;
-				if (container) {
-					container.innerHTML = '';
-				}
-			} catch (error) {
-				console.warn('map-destroy-error', error);
-			}
-		},
-
-		// Helper to return the standard marker icon
-		getMarkerIcon() {
-			return L.icon({
-				iconUrl: markerIcon,
-				iconRetinaUrl: markerIcon2x,
-				shadowUrl: markerShadow,
-				iconSize: [25, 41],
-				iconAnchor: [12, 41],
-				popupAnchor: [1, -34],
-				shadowSize: [41, 41],
-			});
-		},
-
-		// Creates a marker with a structured popup card and attaches it to the map.
-		createMarker(incident: IncidentMapItem) {
-			if (!this.map || !this.markerCluster || typeof incident.latitud !== 'number' || typeof incident.longitud !== 'number') {
-				return;
-			}
+					return {
+						type: 'Feature',
+						properties: {
+							title: z.nombre,
+							color: ZONE_COLORS[idx % ZONE_COLORS.length],
+						},
+						geometry: {
+							type: 'Polygon',
+							coordinates: [ring],
+						},
+					};
+				});
 			
-			const icon = this.getMarkerIcon();
-			const marker = L.marker([incident.latitud, incident.longitud], { icon: icon });
+			const source = this.map.getSource('zones') as maplibregl.GeoJSONSource;
+			if (source) {
+				source.setData({
+					type: 'FeatureCollection',
+					features: features as any,
+				});
+			}
+		},
+		async fetchIncidents() {
+			if (!this.fechaInicio || !this.fechaFin) return;
+			try {
+				const response = await axios.get<IncidentMapItem[]>(`${this.baseUrl}/api/admin/incidentes/mapa`, {
+					headers: this.buildHeaders(),
+					params: { fechaInicio: this.fechaInicio, fechaFin: this.fechaFin },
+				});
+				const items = Array.isArray(response.data) ? response.data : [];
+				
+				// Transform to GeoJSON
+				const features = items
+					.filter(i => typeof i.latitud === 'number' && typeof i.longitud === 'number')
+					.map(item => ({
+						type: 'Feature',
+						properties: {
+							id: item.id,
+							title: item.titulo || 'Sin Título',
+							status: item.estado,
+							category: item.categoriaNombre,
+							date: this.formatDate(item.fechaReporte),
+						},
+						geometry: {
+							type: 'Point',
+							coordinates: [item.longitud, item.latitud],
+						},
+					}));
+				
+				const geoJson = {
+					type: 'FeatureCollection',
+					features: features as any,
+				};
+				
+				// Update local
+				this.incidentsGeoJson = geoJson as FeatureCollection;
 
-			// Build popup HTML (plain HTML — do NOT mount Vue inside)
-
-			const popupHtml = `
-				<div class="leaflet-popup-card" role="alertdialog" aria-labelledby="inc-title-${incident.id}">
-					<div class="card-row">
-						<div class="card-body" style="width:100%">
-							<h3 id="inc-title-${incident.id}" class="card-title">${this.escapeHtml(incident.titulo || 'Sin título')}</h3>
-							<div class="meta"><span class="cat">${this.escapeHtml(incident.categoriaNombre || 'Sin categoría')}</span> <span class="status status-${(incident.estado || 'DESCONOCIDO').toString().toUpperCase()}">${this.escapeHtml(incident.estado || 'Desconocido')}</span></div>
-							<div class="meta" style="margin-top:6px">${this.formatDate(incident.fechaReporte)}</div>
-							<div class="card-actions" style="margin-top:8px"><button class="btn-details" data-id="${incident.id}" tabindex="0" aria-label="Ver detalle incidente ${incident.id}">Ver detalle</button></div>
-						</div>
-					</div>
-				</div>
-			`;
-
-			marker.bindPopup(popupHtml);
-
-			// Event wiring: attach handler when popup opens, remove on close to avoid leaks
-			const onDetailsClick = () => {
-				router.push({ name: 'AdminIncidentDetail', query: { id: String(incident.id) } });
-			};
-
-			const onPopupOpen = (e: any) => {
-				const node = (e.popup as any)._contentNode as HTMLElement | undefined;
-				const btn = node?.querySelector('.btn-details') as HTMLButtonElement | null;
-				if (btn) {
-					btn.addEventListener('click', onDetailsClick);
-					btn.addEventListener('keydown', (ev) => {
-						if (ev.key === 'Enter' || ev.key === ' ') {
-							ev.preventDefault();
-							onDetailsClick();
-						}
-					});
+				if (this.map) {
+					const source = this.map.getSource('incidents') as maplibregl.GeoJSONSource;
+					if (source) {
+						source.setData(geoJson as any);
+					}
 				}
-			};
+				// Cache it
+				this.adminStore.setIncidents(geoJson);
 
-			const onPopupClose = (e: any) => {
-				const node = (e.popup as any)._contentNode as HTMLElement | undefined;
-				const btn = node?.querySelector('.btn-details') as HTMLButtonElement | null;
-				if (btn) {
-					btn.removeEventListener('click', onDetailsClick);
-					// keydown listener is anonymous; popup DOM is removed on close so leak risk is minimal here
-				}
-			};
-
-			marker.on('popupopen', onPopupOpen);
-			marker.on('popupclose', onPopupClose);
-
-			// Add to CLUSTER instead of MAP directly
-			this.markerCluster.addLayer(marker);
-			// Keep track for scaling/updates
-			this.markers.push(marker);
-		},
-		// Programmatic navigation helper (used by popup button)
-		editIncident(incidentId: number) {
-			router.push({ name: 'AdminIncidentDetail', query: { id: String(incidentId) } });
-		},
-
-		// Small helper to escape HTML in popup content
-		escapeHtml(input: string) {
-			return String(input)
-				.replace(/&/g, '&amp;')
-				.replace(/</g, '&lt;')
-				.replace(/>/g, '&gt;')
-				.replace(/"/g, '&quot;')
-				.replace(/'/g, '&#039;');
-		},
-
-		// Adjusts the viewport depending on marker availability.
-		fitMapToMarkers() {
-			if (!this.map) {
-				return;
+			} catch (e) {
+				console.warn('error fetching incidents', e);
+				throw e;
 			}
-			if (!this.markers.length) {
-				this.map.setView([this.center.lat, this.center.lng], this.zoom);
-				return;
-			}
-			const bounds = L.latLngBounds(this.markers.map((marker) => marker.getLatLng()));
-			this.map.fitBounds(bounds.pad(0.2));
 		},
-		// Formats backend timestamps into `dd MMM yyyy HH:mm` (e.g. "19 Nov 2025 10:20").
-		formatDate(value?: string) {
-			if (!value) return '—';
-			const date = new Date(value);
-			if (Number.isNaN(date.getTime())) return '—';
-			const parts = new Intl.DateTimeFormat('es-CL', {
-				day: '2-digit',
-				month: 'short',
-				year: 'numeric',
-				hour: '2-digit',
-				minute: '2-digit',
-				hour12: false,
-			}).formatToParts(date);
-			const day = parts.find((p: any) => p.type === 'day')?.value ?? '';
-			const month = parts.find((p: any) => p.type === 'month')?.value ?? '';
-			const year = parts.find((p: any) => p.type === 'year')?.value ?? '';
-			const hour = parts.find((p: any) => p.type === 'hour')?.value ?? '';
-			const minute = parts.find((p: any) => p.type === 'minute')?.value ?? '';
-			return `${day} ${month} ${year} ${hour}:${minute}`;
+		async loadAllData() { // Wrapper for fetchAllDataAndCache to keep method name if used
+			await this.loadOrFetchData();
 		},
-		// Loads incidents end-to-end: list + markers.
-		async loadIncidents() {
-			if (!this.resolvedToken || !this.baseUrl) {
-				this.error = 'No pudimos autenticar la solicitud.';
-				return;
+		async loadOrFetchData() {
+			if (!this.map) return;
+
+			if (this.adminStore.state.hasLoaded) {
+				this.applyCachedData();
+			} else {
+				await this.fetchAllDataAndCache();
 			}
+			// Fit bounds after data load
+			this.fitMapToBounds();
+		},
+		async fetchAllDataAndCache() {
 			this.loading = true;
 			this.error = '';
 			try {
-				const list = await this.fetchMapIncidents();
-				if (!list.length) {
-					this.incidents = [];
-					this.clearMarkers();
-					// Swallow error if fitBounds fails for empty list
-					try { this.fitMapToMarkers(); } catch (_) { /* ignore */ }
-					return;
-				}
-				
-				const validIncidents = list.filter((item: IncidentMapItem) => {
-					return (
-						item !== null &&
-						typeof item.latitud === 'number' &&
-						typeof item.longitud === 'number'
-					);
-				});
-				this.incidents = validIncidents;
-				this.clearMarkers();
-				validIncidents.forEach((incident: IncidentMapItem) => this.createMarker(incident));
-				try {
-					this.fitMapToMarkers();
-				} catch (err) {
-					console.warn('fit-bounds-error', err);
-				}
-			} catch (error) {
-				console.error('incident-map-load-error', error);
-				this.error = 'No pudimos cargar los incidentes. Intenta nuevamente.';
+				// Reset local data before fetching to ensure clean bounds calculation or rely on overwrite
+				this.incidentsGeoJson = { type: 'FeatureCollection', features: [] } as FeatureCollection;
+				this.zones = [];
+
+				await Promise.all([
+					this.fetchZones(),
+					this.fetchIncidents(),
+				]);
+				this.adminStore.setDates(this.fechaInicio, this.fechaFin);
+			} catch (err) {
+				console.error(err);
+				this.error = 'Error cargando datos';
 			} finally {
 				this.loading = false;
 			}
 		},
-		// Handler for the manual reload button.
+		applyCachedData() {
+			const incidents = this.adminStore.state.incidents;
+			const zones = this.adminStore.state.zones; // Assumes RouteZone[] stored
+			
+			if (incidents) {
+				this.incidentsGeoJson = incidents;
+				if (this.map) {
+					const source = this.map.getSource('incidents') as maplibregl.GeoJSONSource;
+					if (source) source.setData(incidents);
+				}
+			}
+
+			if (zones && zones.length) {
+				this.zones = zones;
+				this.updateMapWithZones(zones);
+			}
+		},
 		onReload() {
-			void this.loadIncidents();
-			void this.fetchZones();
+			// Forced reload from UI
+			void this.fetchAllDataAndCache();
+		},
+		onDateChange() {
+			// Do nothing -> wait for apply
+		},
+		destroyMap() {
+			if (this.map) {
+				this.map.remove();
+				this.map = null;
+			}
+		},
+		formatDate(value?: string) {
+			if (!value) return '-';
+			const date = new Date(value);
+			return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
 		},
 	},
 });
 </script>
 
 <style scoped>
+/* Keep existing layout styles */
 .admin-home-page ion-content {
 	--background: #f8fafc;
-	--color: #0f172a;
-	color: #0f172a;
 }
-
 .mapa-incidentes {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 	padding: 16px;
-	min-height: 100%;
+	height: 100%;
 }
-
 .mapa-incidentes__header {
+	background: white;
+	padding: 16px;
+	border-radius: 12px;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.header-top {
 	display: flex;
-	flex-wrap: wrap;
 	justify-content: space-between;
 	align-items: center;
-	gap: 12px;
+	margin-bottom: 8px;
 }
-
-.mapa-incidentes__header h1 {
-	margin: 0;
-	font-size: 1.3rem;
-}
-
-.mapa-incidentes__header p {
-	margin: 0;
-	color: #475569;
-}
-
-.mapa-incidentes__controls {
+.header-actions {
 	display: flex;
-	justify-content: flex-start;
-	align-items: flex-end;
 	gap: 12px;
-	flex-wrap: wrap;
+	align-items: center;
 }
-
-.date-field {
+.date-inputs {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
+	gap: 8px;
 }
-
-.date-field label {
-	font-size: 0.75rem;
-	font-weight: 600;
-	color: #64748b;
-}
-
-.date-field input {
-	border: 1px solid #cbd5e1;
-	border-radius: 8px;
-	padding: 6px 10px;
-	font-size: 0.9rem;
-	color: #334155;
-	background: white;
-}
-
-.mapa-incidentes__controls button {
-	border: none;
-	border-radius: 999px;
-	padding: 8px 20px;
-	background: #2563eb;
-	color: #fff;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background-color 0.2s, opacity 0.2s;
-	height: 38px;
-}
-
-.mapa-incidentes__controls button:disabled {
-	opacity: 0.6;
-	cursor: not-allowed;
-}
-
-.mapa-incidentes__controls button:not(:disabled):hover {
-	background: #1d4ed8;
-}
-
-.mapa-incidentes__status {
-	background: #f8fafc;
-	border: 1px solid #e2e8f0;
-	border-radius: 12px;
-	padding: 12px 16px;
-}
-
-.mapa-incidentes__status p {
-	margin: 0;
-}
-
-.mapa-incidentes__status .error {
-	color: #b91c1c;
-}
-
-.mapa-incidentes__map-wrapper {
+.mapa-container-wrapper {
+	flex: 1;
+	min-height: 400px; /* Minimum height ensures viability */
 	position: relative;
-	min-height: 80vh;
-	max-height: 80vh;
-	min-width: 95%;
-	aspect-ratio: 1 / 1;
-	border-radius: 16px;
+	border-radius: 12px;
 	overflow: hidden;
-	border: 1px solid #e2e8f0;
-	margin: 0 auto;
-	max-width: 100%;
+	box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
 }
-
-.mapa-incidentes__map {
-	height: 100%;
+.mapa-container {
 	width: 100%;
+	height: 100%;
 }
-
 .mapa-incidentes__overlay {
 	position: absolute;
 	top: 12px;
 	right: 12px;
-	/* Removed full coverage */
-	background: rgba(255, 255, 255, 0.9);
-	padding: 8px 16px;
-	border-radius: 999px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	background: rgba(255,255,255,0.9);
+	padding: 8px 12px;
+	border-radius: 99px;
+	font-size: 0.85rem;
 	display: flex;
-	flex-direction: row; /* Horizontal layout */
 	align-items: center;
-	justify-content: center;
-	z-index: 1000; /* Ensure it's above map controls */
 	gap: 8px;
-	pointer-events: none; /* Let clicks pass through if needed, though usually it's small enough */
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-
 .spinner {
-	width: 20px;
-	height: 20px;
-	border: 2px solid #bfdbfe;
-	border-top-color: #2563eb;
+	width: 16px;
+	height: 16px;
+	border: 2px solid #ccc;
+	border-top-color: #333;
 	border-radius: 50%;
 	animation: spin 1s linear infinite;
 }
-
-@keyframes spin {
-	to {
-		transform: rotate(360deg);
-	}
-}
-
-.popup {
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-badge {
+	position: absolute;
+	bottom: 12px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: #fecaca;
+	color: #991b1b;
+	padding: 8px 16px;
+	border-radius: 99px;
 	font-size: 0.85rem;
-	line-height: 1.4;
+	font-weight: 500;
 }
-
-@media (max-width: 640px) {
-	.mapa-incidentes {
-		padding: 12px;
-	}
-	.mapa-incidentes__header {
-		flex-direction: column;
-		align-items: flex-start;
-	}
-}
-
-/* Popup card styles for Leaflet popups (scoped to this component) */
-.leaflet-popup-card{font-family:Inter,system-ui;max-width:320px}
-.leaflet-popup-card .card-row{display:flex;gap:8px}
-.leaflet-popup-card .card-body{min-width:0}
-.leaflet-popup-card .card-title{margin:0;font-size:14px;font-weight:700}
-.leaflet-popup-card .meta{display:flex;gap:8px;align-items:center;font-size:12px;color:#64748b}
-.leaflet-popup-card .status{padding:4px 8px;border-radius:999px;font-weight:600}
-.leaflet-popup-card .status-CERRADO{background:#fee2e2;color:#b91c1c}
-.leaflet-popup-card .status-ABIERTO{background:#dcfce7;color:#166534}
-.leaflet-popup-card .desc{margin:8px 0;font-size:13px;color:#0f1724}
-.leaflet-popup-card .btn-details{background:#2563eb;color:#fff;padding:6px 10px;border-radius:8px;border:0;cursor:pointer}
-@media (max-width:420px){.leaflet-popup-card{max-width:90vw}}
+h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #1e293b; }
+.subtitle { margin: 0; color: #64748b; font-size: 0.9rem; }
 </style>
