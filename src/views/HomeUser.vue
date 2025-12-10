@@ -86,7 +86,7 @@ const ensureMap = (lat: number, lng: number) => {
 				.addTo(newMap);
 			marker.value = markRaw(newMarker);
 			
-			newMap.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+			newMap.addControl(new maplibregl.NavigationControl(), 'top-left');
 
 		} catch (error) {
 			console.error('Map init error', error);
