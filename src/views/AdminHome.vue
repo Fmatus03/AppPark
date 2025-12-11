@@ -153,9 +153,14 @@ export default defineComponent({
 	mounted() {
 		this.restoreOrCalculateDates();
 		this.bootstrapMap();
+		// Expose function for map popup
+		(window as any).onClickDetail = (id: string) => {
+			router.push({ name: 'AdminIncidentDetail', query: { id } });
+		};
 	},
 	beforeUnmount() {
 		this.destroyMap();
+		delete (window as any).onClickDetail;
 	},
 	methods: {
 		ionViewDidEnter() {
@@ -375,7 +380,7 @@ export default defineComponent({
 						<h3>${props.title}</h3>
 						<p><strong>Estado:</strong> ${props.status}</p>
 						<p><strong>Categoría:</strong> ${props.category}</p>
-						<p class="date"><strong>Fecha:</strong>${props.date}</p>
+						<p class="date"><strong>Fecha: </strong>${props.date}</p>
 						<button class="btn-detail" onclick="onClickDetail(${props.id})" style="margin-top:8px; padding:4px 8px; cursor:pointer;">Ver Detalle</button>
 					</div>
 				`;
@@ -397,13 +402,8 @@ export default defineComponent({
 
 			// Cursor pointer
 			this.map.on('mouseenter', 'clusters', () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; });
-			this.map.on('mouseleave', 'clusters', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
 			this.map.on('mouseenter', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = 'pointer'; });
 			this.map.on('mouseleave', 'unclustered-point', () => { if (this.map) this.map.getCanvas().style.cursor = ''; });
-		},
-
-		onClickDetail(id: string) {
-			router.push({ name: 'AdminIncidentDetail', query: { id } });
 		},
 		buildHeaders() {
 			return {
