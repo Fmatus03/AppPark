@@ -34,6 +34,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { add, cloudOfflineOutline } from 'ionicons/icons';
 import { Network } from '@capacitor/network';
+import { useOfflineIncidents } from '@/composables/useOfflineIncidents';
 
 const mapRef = ref<HTMLDivElement | null>(null);
 let watchId: CallbackID | null = null;
@@ -170,12 +171,16 @@ const checkNetwork = async () => {
 	});
 };
 
+const { processQueue } = useOfflineIncidents();
+
 onMounted(async () => {
 	await checkNetwork();
 	// Init map immediately with default center (Temuco)
 	// This ensures map is visible even if GPS is slow
 	ensureMap(-38.739, -72.598);
 	startTracking();
+	// Check if there are pending incidents (e.g. from a timeout)
+	processQueue();
 });
 
 const cleanup = async () => {

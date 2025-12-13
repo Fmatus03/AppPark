@@ -40,6 +40,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Camara -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <!-- Acceder al almacenamiento del celular y editarlo -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
