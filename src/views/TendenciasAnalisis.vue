@@ -1040,6 +1040,12 @@ const session = useSession();
 const { postReport } = useAnalyticsApi({ getToken: () => session.authToken.value ?? undefined });
 const { setMinimized } = useSidebar();
 
+const getMonthName = (dateStr: string) => {
+	const [year, month] = dateStr.split('-');
+	const date = new Date(Number(year), Number(month) - 1, 1);
+	return date.toLocaleDateString('es-ES', { month: 'long' });
+};
+
 onIonViewWillEnter(() => {
 	setMinimized(true);
 });
@@ -1240,7 +1246,7 @@ const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 	const labels = Array.from(labelsSet).sort();
 	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) => labels.map((label) => evolucion.find((item) => item.mes === label)?.total ?? 0);
 	return {
-		labels,
+		labels: labels.map(label => getMonthName(label)),
 		datasets: [
 			{ label: `${data.periodo1.anio}`, data: buildSeries(data.periodo1.evolucionMensual), borderColor: colorPalette[0], fill: false, borderWidth: 2 },
 			{ label: `${data.periodo2.anio}`, data: buildSeries(data.periodo2.evolucionMensual), borderColor: colorPalette[1], fill: false, borderWidth: 2 },
@@ -1302,13 +1308,18 @@ const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
 	if (!data) return null;
 	const labels = data.comparacionPorZona.map((zona) => zona.ruta.nombre);
 	const categoriaSet = new Set<string>();
-	data.comparacionPorZona.forEach((zona) => zona.distribucionCategorias.forEach((cat) => categoriaSet.add(cat.nombre)));
+	// Backend returns 'categoria' property, not 'nombre'
+	data.comparacionPorZona.forEach((zona) => zona.distribucionCategorias.forEach((cat: any) => categoriaSet.add(cat.categoria || cat.nombre)));
 	const categorias = Array.from(categoriaSet);
 	return {
 		labels,
 		datasets: categorias.map((cat, idx) => ({
 			label: cat,
-			data: data.comparacionPorZona.map((zona) => zona.distribucionCategorias.find((c) => c.nombre === cat)?.cantidad ?? 0),
+			data: data.comparacionPorZona.map((zona) => {
+				// Match loose type
+				const categoryData = zona.distribucionCategorias.find((c: any) => (c.categoria || c.nombre) === cat);
+				return categoryData?.cantidad ?? 0;
+			}),
 			backgroundColor: extendedPalette[idx % extendedPalette.length],
 			stack: 'zonas',
 		})),

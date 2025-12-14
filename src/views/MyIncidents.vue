@@ -13,7 +13,7 @@
 			</ion-toolbar>
 		</ion-header>
 
-		<ion-content :fullscreen="true" class="ion-padding">
+		<ion-content :fullscreen="true" class="ion-padding" ref="contentRef">
 			<section class="incident-list" aria-live="polite">
 				<ion-spinner
 					v-if="isLoading"
@@ -166,6 +166,7 @@ const errorMessage = ref('');
 const currentPage = ref(0);
 const totalPages = ref(1);
 const isLastPage = ref(false);
+const contentRef = ref<any>(null);
 
 const resetIncidentsState = () => {
 	incidents.value = [];
@@ -338,6 +339,7 @@ const fetchIncidents = async (page = 0) => {
 const changePage = (newPage: number) => {
     if (newPage >= 0 && newPage < totalPages.value) {
         fetchIncidents(newPage);
+        contentRef.value?.$el.scrollToTop(500);
     }
 };
 
