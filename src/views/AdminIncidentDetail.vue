@@ -694,7 +694,9 @@ const fetchIncidentDetail = async () => {
 		loadError.value = 'No se proporcionó un ID de incidente válido.';
 		return;
 	}
-	isLoading.value = true;
+	if (!incident.value) {
+		isLoading.value = true;
+	}
 	loadError.value = null;
 	try {
 		const endpoint = `${apiBaseUrl}/api/admin/incidentes/${incidentId.value}`;
