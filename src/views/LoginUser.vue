@@ -76,7 +76,6 @@
           <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
           <div class="support-links">
-            <ion-button fill="clear" size="small" type="button" class="support-link" @click="forgotPassword">¿Olvidaste tu contraseña?</ion-button>
             <ion-button
               v-if="runningOnAndroidApp"
               fill="clear"
@@ -296,7 +295,14 @@ const onSubmit = async () => {
 
     errorMessage.value = data?.error ?? 'Credenciales inválidas';
   } catch (error) {
-    console.error('login-error', error);
+    console.error('login-error', JSON.stringify(error, null, 2));
+    if (typeof error === 'object' && error !== null) {
+        console.error('login-error-details', {
+            status: (error as any).status,
+            error: (error as any).error,
+            headers: (error as any).headers
+        });
+    }
     errorMessage.value = 'No fue posible iniciar sesión. Intenta nuevamente.';
   } finally {
     isSubmitting.value = false;
