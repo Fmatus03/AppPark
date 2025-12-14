@@ -145,6 +145,7 @@ export const useIncidentService = () => {
                 headers,
                 data: formData as unknown as Record<string, unknown>,
                 responseType: 'text',
+                timeout: 30, // 3 minutes timeout
             });
             const status = resp?.status ?? -1;
             const data = resp?.data ?? resp?.error ?? null;

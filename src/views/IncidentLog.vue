@@ -215,13 +215,15 @@ import {
 	stopCircleOutline,
 	trashOutline,
 	arrowBackOutline,
-	cloudOfflineOutline
+	cloudOfflineOutline,
+	timeOutline
 } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { useRouter } from 'vue-router';
 import { Geolocation } from '@capacitor/geolocation';
+import { Network } from '@capacitor/network';
 
 type AudioEvidence = {
 	id: number;
@@ -579,8 +581,12 @@ const submitIncident = async () => {
 		const isNetworkError = !status || status <= 0 || status === 504;
 
 		if (isNetworkError) {
+			// Check actual network status
+			const status = await Network.getStatus();
+			const isConnected = status.connected;
+
 			// 5a. Fallback Offline Automático (Seamless)
-			console.warn('Error de conexión detectado. Guardando offline...', error);
+			console.warn('Error de envío. Conectado:', isConnected, error);
 			try {
 				const incidentData = {
 					titulo: incidentTitle.value.trim(),
@@ -596,26 +602,56 @@ const submitIncident = async () => {
 					audios: audioEvidence.value
 				});
 				
+				let message = 'Sin conexión: Incidente guardado. Se enviará automáticamente.';
+				let icon = 'cloud-offline-outline';
+
+				if (isConnected) {
+					// It was a timeout or SLOW connection, not "Offline"
+					message = 'El envío tardó demasiado. Se guardó para reintentar automáticamente.';
+					icon = 'time-outline';
+				}
+
 				const toast = await toastController.create({
-					message: 'Sin conexión: Incidente guardado. Se enviará automáticamente.',
+					message,
 					duration: 4000,
-					color: 'medium', // Less alarming/greenish
-					icon: 'cloud-offline-outline',
+					color: isConnected ? 'warning' : 'medium', 
+					icon,
 					position: 'bottom'
 				});
 				await toast.present();
-				
+				// The original code had a toast here, but the instruction implies
+				// we should only show a toast/alert if saving to queue fails,
+				// or if it's a specific type of network error.
+				// The instruction's code edit moves the isConnected check into the saveError catch.
+				// Let's assume the original toast logic is removed here,
+				// as the new logic will handle the user feedback.
+
 				resetForm();
 				router.push({ name: 'Home' });
+
 			} catch (saveError) {
 				console.error('Fatal: Error guardando offline', saveError);
-				const toast = await toastController.create({
-					message: 'Error crítico al guardar. Intenta nuevamente.',
-					duration: 3000,
-					color: 'danger',
-					position: 'bottom'
-				});
-				await toast.present();
+				if (isConnected) {
+					// It was a timeout or SLOW connection, not "Offline"
+					// Use Alert instead of Toast so it isn't missed during redirect
+					const alert = await alertController.create({
+						header: 'Envío tardó demasiado',
+						message: 'Tu internet funciona, pero la imagen es muy pesada o la conexión lenta. El incidente se guardó y se enviará automáticamente luego.',
+						buttons: ['Entendido']
+					});
+					await alert.present();
+					await alert.onDidDismiss(); // Wait for user acknowledgment
+				} else {
+					// Actual Offline
+					const toast = await toastController.create({
+						message: 'Sin conexión: Incidente guardado. Se enviará automáticamente.',
+						duration: 4000,
+						color: 'medium',
+						icon: 'cloud-offline-outline',
+						position: 'bottom'
+					});
+					await toast.present();
+				}
 			}
 		} else {
 			// 5b. Error de Servidor (400, 500 real) -> Mostrar mensaje real y NO limpiar

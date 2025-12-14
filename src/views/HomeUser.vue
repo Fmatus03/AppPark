@@ -26,14 +26,15 @@
 </template>
 
 <script setup lang="ts">
-import { IonButton, IonContent, IonHeader, IonIcon, IonPage, IonTitle, IonToolbar, onIonViewWillLeave } from '@ionic/vue';
+import { IonButton, IonContent, IonHeader, IonIcon, IonPage, IonTitle, IonToolbar, onIonViewWillLeave, onIonViewDidEnter } from '@ionic/vue';
 import { Geolocation, type CallbackID } from '@capacitor/geolocation';
-import { onBeforeUnmount, onMounted, ref, markRaw, nextTick } from 'vue';
+import { onBeforeUnmount, ref, markRaw, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { add, cloudOfflineOutline } from 'ionicons/icons';
 import { Network } from '@capacitor/network';
+import { useOfflineIncidents } from '@/composables/useOfflineIncidents';
 
 const mapRef = ref<HTMLDivElement | null>(null);
 let watchId: CallbackID | null = null;
@@ -170,12 +171,16 @@ const checkNetwork = async () => {
 	});
 };
 
-onMounted(async () => {
+const { processQueue } = useOfflineIncidents();
+
+onIonViewDidEnter(async () => {
 	await checkNetwork();
 	// Init map immediately with default center (Temuco)
 	// This ensures map is visible even if GPS is slow
 	ensureMap(-38.739, -72.598);
 	startTracking();
+	// Check if there are pending incidents (e.g. from a timeout)
+	processQueue();
 });
 
 const cleanup = async () => {

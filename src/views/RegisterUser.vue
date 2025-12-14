@@ -126,12 +126,12 @@
 					</ion-list>
 
 					<ion-button expand="block" type="submit" class="register-button" :disabled="isSubmitting">
-						{{ isSubmitting ? 'Creando cuenta…' : 'Crear cuenta' }}
+						<span v-if="!isSubmitting">Crear cuenta</span>
+                        <ion-spinner name="crescent" v-else></ion-spinner>
 					</ion-button>
 
 					<div class="support-links">
 						<ion-button fill="clear" size="small" type="button" class="support-link" @click="goToLogin">¿Ya tienes cuenta? Inicia sesión</ion-button>
-						<ion-button fill="clear" size="small" type="button" class="support-link" @click="goToHelp">Ayuda</ion-button>
 					</div>
 				</form>
 			</div>
@@ -148,6 +148,8 @@ import {
 	IonItem,
 	IonList,
 	IonPage,
+    IonSpinner,
+    toastController,
 	onIonViewWillLeave,
 } from '@ionic/vue';
 import { ref } from 'vue';
@@ -271,12 +273,29 @@ const onSubmit = async () => {
 			console.info('register-success', data);
 		}
 
+        const toast = await toastController.create({
+            message: 'Cuenta creada exitosamente',
+            duration: 2000,
+            color: 'success',
+            position: 'bottom'
+        });
+        await toast.present();
+
 		resetForm();
 		router.push({ name: 'Login' });
 	} catch (error) {
 		const status = (error as { status?: number })?.status;
 		const data = (error as { data?: unknown })?.data ?? (error as Error).message;
-		console.error('register-error', { status, data });
+		console.error('register-error', JSON.stringify(error, null, 2));
+        console.error('register-error-details', { status, data });
+
+        const toast = await toastController.create({
+            message: 'No se pudo crear la cuenta. Intente nuevamente.',
+            duration: 3000,
+            color: 'danger',
+            position: 'bottom'
+        });
+        await toast.present();
 	} finally {
 		isSubmitting.value = false;
 	}

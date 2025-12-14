@@ -1,8 +1,9 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Preferences } from '@capacitor/preferences';
 import { useIncidentService } from './useIncidentService';
 import { Network } from '@capacitor/network';
 import { toastController } from '@ionic/vue';
+import { useSession } from './useSession';
 
 const STORAGE_KEY = 'offline_incidents_queue';
 
@@ -19,6 +20,7 @@ export const useOfflineIncidents = () => {
     const queue = ref<OfflineIncident[]>([]);
     const { uploadIncident } = useIncidentService();
     const isSyncing = ref(false);
+    const { isAuthenticated } = useSession();
 
     const loadQueue = async () => {
         const result = await Preferences.get({ key: STORAGE_KEY });
@@ -58,6 +60,12 @@ export const useOfflineIncidents = () => {
     };
 
     const processQueue = async () => {
+        // AUTH CHECK: Do not attempt to sync if user is not logged in.
+        if (!isAuthenticated.value) {
+            console.log('[Offline Sync] User not authenticated. Skipping sync.');
+            return;
+        }
+
         if (isSyncing.value) return;
 
         const status = await Network.getStatus();
@@ -147,6 +155,14 @@ export const useOfflineIncidents = () => {
                 setTimeout(async () => {
                     await processQueue();
                 }, 3000);
+            }
+        });
+
+        // Watch for authentication changes (e.g., login)
+        watch(isAuthenticated, async (newValue) => {
+            if (newValue) {
+                console.log('[Offline Sync] User logged in. Checking for pending items...');
+                await processQueue();
             }
         });
     };

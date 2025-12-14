@@ -5,7 +5,7 @@
 				<ion-title>Gestion de Incidentes</ion-title>
 			</ion-toolbar>
 		</ion-header>
-		<ion-content fullscreen class="incident-content">
+		<ion-content fullscreen class="incident-content" ref="contentRef">
 			<div class="incident-page">
 				<section class="card filters-card">
 					<h2>Filtrar Incidentes</h2>
@@ -231,6 +231,7 @@ const routes = ref<RouteDTO[]>([]);
 const categories = ref<CategoryDTO[]>([]);
 const states = ref<EstadoIncidente[]>([]);
 const referenceDataLoaded = ref(false);
+const contentRef = ref<any>(null);
 
 const defaultFilters: FilterSet = {
 	keyword: '',
@@ -288,6 +289,7 @@ const requestPage = (page: number) => {
 	}
 	pagination.page = page;
 	void fetchIncidents();
+	contentRef.value?.$el.scrollToTop(500);
 };
 
 const goToPreviousPage = () => {
