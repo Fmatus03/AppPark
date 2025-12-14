@@ -1242,11 +1242,29 @@ const comparacionMensualEstadoData = computed(() => {
 const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionAnual.data : comparacionAnual.data;
 	if (!data) return null;
-	const labelsSet = new Set([...data.periodo1.evolucionMensual.map((item) => item.mes), ...data.periodo2.evolucionMensual.map((item) => item.mes)]);
-	const labels = Array.from(labelsSet).sort();
-	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) => labels.map((label) => evolucion.find((item) => item.mes === label)?.total ?? 0);
+
+	const allMonths = [
+		'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+		'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+	];
+
+	// Helper to extract data for each month (0-11) from the YYYY-MM response
+	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) => {
+		// Initialize array with 0s for 12 months
+		const series = new Array(12).fill(0);
+		evolucion.forEach(item => {
+			if (item.mes && item.mes.length >= 7) {
+				const monthIndex = parseInt(item.mes.slice(5, 7), 10) - 1;
+				if (monthIndex >= 0 && monthIndex < 12) {
+					series[monthIndex] = item.total;
+				}
+			}
+		});
+		return series;
+	};
+
 	return {
-		labels: labels.map(label => getMonthName(label)),
+		labels: allMonths,
 		datasets: [
 			{ label: `${data.periodo1.anio}`, data: buildSeries(data.periodo1.evolucionMensual), borderColor: colorPalette[0], fill: false, borderWidth: 2 },
 			{ label: `${data.periodo2.anio}`, data: buildSeries(data.periodo2.evolucionMensual), borderColor: colorPalette[1], fill: false, borderWidth: 2 },
