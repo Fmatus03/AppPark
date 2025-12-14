@@ -1049,6 +1049,12 @@ const onGuardar = async () => {
 			await action();
 		}
 
+		// Force map recreation to ensure it attaches to the correct DOM element
+		if (map.value) {
+			map.value.remove();
+			map.value = null;
+		}
+
 		await loadIncidentData();
 		await showToast('Cambios guardados correctamente.');
 	} catch (error) {
