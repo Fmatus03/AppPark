@@ -820,7 +820,7 @@
 							<div class="kpi-grid">
 								<kpi-card label="Tendencia positiva" :value="rankingTendenciaRutas.data.analisisGlobal.rutaConTendenciaPositiva ?? '—'" description="Mayor crecimiento" accent="success" />
 								<kpi-card label="Tendencia negativa" :value="rankingTendenciaRutas.data.analisisGlobal.rutaConTendenciaNegativa ?? '—'" description="Mayor caída" accent="danger" />
-								<kpi-card label="Ruta estable" :value="rankingTendenciaRutas.data.analisisGlobal.rutaMasEstable ?? '—'" description="Variación mínima" accent="neutral" />
+								<kpi-card label="Zona estable" :value="rankingTendenciaRutas.data.analisisGlobal.rutaMasEstable ?? '—'" description="Variación mínima" accent="neutral" />
 							</div>
 							<div class="visual-card">
 								<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="320" />
@@ -1241,7 +1241,7 @@ const comparacionMensualEstadoData = computed(() => {
 
 const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 	const data = activeReportId.value === 'overview' ? overviewState.reports.comparacionAnual.data : comparacionAnual.data;
-	if (!data) return null;
+	if (!data || !data.periodo1 || !data.periodo2) return null;
 
 	const allMonths = [
 		'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -1252,11 +1252,16 @@ const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 	const buildSeries = (evolucion: Array<{ mes: string; total: number }>) => {
 		// Initialize array with 0s for 12 months
 		const series = new Array(12).fill(0);
-		evolucion.forEach(item => {
-			if (item.mes && item.mes.length >= 7) {
-				const monthIndex = parseInt(item.mes.slice(5, 7), 10) - 1;
+		if (!Array.isArray(evolucion)) return series;
+		
+		evolucion.forEach((item: any) => {
+			const mesStr = item.mes || item.periodo; // Handle potential 'periodo' prop
+			const totalVal = item.total ?? item.cantidad ?? 0; // Handle potential 'cantidad' prop
+
+			if (mesStr && mesStr.length >= 7) {
+				const monthIndex = parseInt(mesStr.slice(5, 7), 10) - 1;
 				if (monthIndex >= 0 && monthIndex < 12) {
-					series[monthIndex] = item.total;
+					series[monthIndex] = totalVal;
 				}
 			}
 		});
@@ -1266,8 +1271,8 @@ const comparacionAnualLineData = computed<ChartData<'line'> | null>(() => {
 	return {
 		labels: allMonths,
 		datasets: [
-			{ label: `${data.periodo1.anio}`, data: buildSeries(data.periodo1.evolucionMensual), borderColor: colorPalette[0], fill: false, borderWidth: 2 },
-			{ label: `${data.periodo2.anio}`, data: buildSeries(data.periodo2.evolucionMensual), borderColor: colorPalette[1], fill: false, borderWidth: 2 },
+			{ label: `${data.periodo1.anio ?? 'Año 1'}`, data: buildSeries(data.periodo1.evolucionMensual), borderColor: colorPalette[0], fill: false, borderWidth: 2 },
+			{ label: `${data.periodo2.anio ?? 'Año 2'}`, data: buildSeries(data.periodo2.evolucionMensual), borderColor: colorPalette[1], fill: false, borderWidth: 2 },
 		],
 	};
 });
