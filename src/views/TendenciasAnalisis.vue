@@ -820,7 +820,7 @@
 							<div class="kpi-grid">
 								<kpi-card label="Tendencia positiva" :value="rankingTendenciaRutas.data.analisisGlobal.rutaConTendenciaPositiva ?? '—'" description="Mayor crecimiento" accent="success" />
 								<kpi-card label="Tendencia negativa" :value="rankingTendenciaRutas.data.analisisGlobal.rutaConTendenciaNegativa ?? '—'" description="Mayor caída" accent="danger" />
-								<kpi-card label="Ruta estable" :value="rankingTendenciaRutas.data.analisisGlobal.rutaMasEstable ?? '—'" description="Variación mínima" accent="neutral" />
+								<kpi-card label="Zona estable" :value="rankingTendenciaRutas.data.analisisGlobal.rutaMasEstable ?? '—'" description="Variación mínima" accent="neutral" />
 							</div>
 							<div class="visual-card">
 								<analytics-chart v-if="rankingRutasLineData" type="line" :data="rankingRutasLineData" :options="lineOptions" :height="320" />
