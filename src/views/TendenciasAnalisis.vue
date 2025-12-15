@@ -472,7 +472,7 @@
 								:accent="comparacionAnual.data.comparacion.tendencia === 'ASCENDENTE' ? 'success' : 'danger'"
 							/>
 							<div class="visual-card">
-								<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="320" />
+								<analytics-chart v-if="comparacionAnualLineData" type="line" :data="comparacionAnualLineData" :options="lineOptions" :height="300" />
 							</div>
 							<div class="table-card">
 								<div class="table-header">
@@ -1326,8 +1326,12 @@ const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
 	if (!data) return null;
 	const labels = data.comparacionPorZona.map((zona) => zona.ruta.nombre);
 	const categoriaSet = new Set<string>();
-	// Backend returns 'categoria' property, not 'nombre'
-	data.comparacionPorZona.forEach((zona) => zona.distribucionCategorias.forEach((cat: any) => categoriaSet.add(cat.categoria || cat.nombre)));
+	// Backend returns 'categoria' property, not 'nombre', checking multiple possibilities
+	data.comparacionPorZona.forEach((zona) => 
+		zona.distribucionCategorias.forEach((cat: any) => 
+			categoriaSet.add(cat.categoriaNombre || cat.categoria || cat.nombre || 'Sin Categoría')
+		)
+	);
 	const categorias = Array.from(categoriaSet);
 	return {
 		labels,
@@ -1335,7 +1339,7 @@ const comparacionZonasStackedData = computed<ChartData<'bar'> | null>(() => {
 			label: cat,
 			data: data.comparacionPorZona.map((zona) => {
 				// Match loose type
-				const categoryData = zona.distribucionCategorias.find((c: any) => (c.categoria || c.nombre) === cat);
+				const categoryData = zona.distribucionCategorias.find((c: any) => (c.categoriaNombre || c.categoria || c.nombre || 'Sin Categoría') === cat);
 				return categoryData?.cantidad ?? 0;
 			}),
 			backgroundColor: extendedPalette[idx % extendedPalette.length],
