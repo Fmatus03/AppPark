@@ -1143,9 +1143,13 @@ const generateEficienciaCierre = () => runReport('eficiencia-cierre', eficiencia
 const formatPercent = (value: number, digits = 1) => `${value.toFixed(digits)}%`;
 
 const exportToCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
+	const normalize = (text: string | number) => {
+		return String(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+	};
+
 	const csvContent = [
-		headers.join(','),
-		...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+		headers.map(h => normalize(h)).join(','),
+		...rows.map(row => row.map(cell => `"${normalize(cell)}"`).join(','))
 	].join('\n');
 
 	const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
