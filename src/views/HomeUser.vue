@@ -53,6 +53,13 @@ const ensureMap = (lat: number, lng: number) => {
 	}
 
 	if (!map.value) {
+		// Ensure container has dimensions
+		if (mapRef.value.clientHeight === 0) {
+			console.warn('Map container has 0 height, retrying in 100ms...');
+			setTimeout(() => ensureMap(lat, lng), 100);
+			return;
+		}
+
 		try {
 			const osmStyle = {
 				version: 8,
@@ -81,6 +88,10 @@ const ensureMap = (lat: number, lng: number) => {
 				zoom: 15,
 			});
 			map.value = markRaw(newMap);
+
+			newMap.on('load', () => {
+				newMap.resize();
+			});
 
 			const newMarker = new maplibregl.Marker({ color: '#2563eb' })
 				.setLngLat([lng, lat])
@@ -137,11 +148,13 @@ const stopTracking = async () => {
 	}
 };
 
+const networkListener = ref<any>(null);
+
 const checkNetwork = async () => {
 	const status = await Network.getStatus();
 	isOffline.value = !status.connected;
 	
-	Network.addListener('networkStatusChange', async (status) => {
+	networkListener.value = await Network.addListener('networkStatusChange', async (status) => {
 		const wasOffline = isOffline.value;
 		isOffline.value = !status.connected;
 
@@ -149,6 +162,9 @@ const checkNetwork = async () => {
 			// Recovering connection
 			console.log('Connection recovered, re-initializing map...');
 			
+			// Trigger sync immediately since we are here
+			processQueue();
+
 			// Clean up old map instance if needed
 			if (map.value) {
 				map.value.remove();
@@ -156,8 +172,9 @@ const checkNetwork = async () => {
 				marker.value = null;
 			}
 
-			// Wait for v-if to render the map div
+			// Wait for v-if to render the map div and layout to stabilize
 			await nextTick();
+			await new Promise(resolve => setTimeout(resolve, 300));
 			
 			// If we are already tracking, the next position update will init the map.
 			// But to be sure, we can try to get current position now
@@ -190,7 +207,10 @@ const cleanup = async () => {
 		map.value = null;
 	}
 	marker.value = null;
-	await Network.removeAllListeners();
+	if (networkListener.value) {
+		networkListener.value.remove();
+		networkListener.value = null;
+	}
 };
 
 onBeforeUnmount(cleanup);

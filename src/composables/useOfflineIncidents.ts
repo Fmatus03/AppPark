@@ -16,10 +16,13 @@ export interface OfflineIncident {
     retryCount?: number;
 }
 
+// SINGLETON STATE
+// Defined outside the function so they are shared across the app
+const queue = ref<OfflineIncident[]>([]);
+const isSyncing = ref(false);
+
 export const useOfflineIncidents = () => {
-    const queue = ref<OfflineIncident[]>([]);
     const { uploadIncident } = useIncidentService();
-    const isSyncing = ref(false);
     const { isAuthenticated } = useSession();
 
     const loadQueue = async () => {
@@ -42,7 +45,11 @@ export const useOfflineIncidents = () => {
     };
 
     const addToQueue = async (incident: Omit<OfflineIncident, 'id' | 'timestamp' | 'retryCount'>) => {
-        await loadQueue();
+        // Ensure we have latest data
+        if (queue.value.length === 0) {
+            await loadQueue();
+        }
+
         const newIncident: OfflineIncident = {
             ...incident,
             id: crypto.randomUUID(),
@@ -60,21 +67,40 @@ export const useOfflineIncidents = () => {
     };
 
     const processQueue = async () => {
+        console.log('[Offline Sync] processQueue triggered');
+
         // AUTH CHECK: Do not attempt to sync if user is not logged in.
         if (!isAuthenticated.value) {
             console.log('[Offline Sync] User not authenticated. Skipping sync.');
             return;
         }
 
-        if (isSyncing.value) return;
+        if (isSyncing.value) {
+            console.log('[Offline Sync] Already syncing. Skipping duplicate request.');
+            return;
+        }
 
         const status = await Network.getStatus();
-        if (!status.connected) return;
+        console.log('[Offline Sync] Network status:', status);
+        if (!status.connected) {
+            console.log('[Offline Sync] Not connected. Aborting.');
+            return;
+        }
 
-        await loadQueue();
-        if (queue.value.length === 0) return;
+        // Ensure queue is loaded
+        if (queue.value.length === 0) {
+            console.log('[Offline Sync] Queue empty in memory, checking storage...');
+            await loadQueue();
+        }
+
+        console.log('[Offline Sync] Queue length:', queue.value.length);
+        if (queue.value.length === 0) {
+            console.log('[Offline Sync] No items to sync.');
+            return;
+        }
 
         isSyncing.value = true;
+        console.log('[Offline Sync] Acquiring sync lock.');
 
         // Notify user sync is starting
         const startToast = await toastController.create({
@@ -131,6 +157,7 @@ export const useOfflineIncidents = () => {
         }
 
         isSyncing.value = false;
+        console.log('[Offline Sync] Sync finished. Lock released.');
 
         if (successCount > 0) {
             const toast = await toastController.create({
@@ -144,15 +171,18 @@ export const useOfflineIncidents = () => {
     };
 
     const initNetworkListener = async () => {
+        console.log('[Offline Sync] Initializing network listener...');
         // Initial check
         await processQueue();
 
         // Listen for changes
         await Network.addListener('networkStatusChange', async (status) => {
+            console.log('[Offline Sync] Network status changed:', status);
             if (status.connected) {
                 console.log('Online detected. Waiting 3s for stability before processing offline queue...');
                 // Wait a bit for connection to stabilize
                 setTimeout(async () => {
+                    console.log('[Offline Sync] 3s timeout reached. processing queue...');
                     await processQueue();
                 }, 3000);
             }
@@ -160,6 +190,7 @@ export const useOfflineIncidents = () => {
 
         // Watch for authentication changes (e.g., login)
         watch(isAuthenticated, async (newValue) => {
+            console.log('[Offline Sync] Auth state changed:', newValue);
             if (newValue) {
                 console.log('[Offline Sync] User logged in. Checking for pending items...');
                 await processQueue();

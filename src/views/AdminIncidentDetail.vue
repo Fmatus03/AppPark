@@ -248,7 +248,139 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, onBeforeUnmount, shallowRef } from 'vue';
+import { computed, reactive, ref, watch, onBeforeUnmount, shallowRef, nextTick } from 'vue';
+
+const initMap = async () => {
+    if (!incident.value?.latitude || !incident.value?.longitude) return;
+    
+    // If map instance exists, just update it
+    if (map.value) {
+        map.value.setCenter([incident.value.longitude, incident.value.latitude]);
+        
+        const source = map.value.getSource('incident-point') as maplibregl.GeoJSONSource;
+        if (source) {
+            source.setData({
+                type: 'FeatureCollection',
+                features: [{
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [incident.value.longitude, incident.value.latitude],
+                    },
+                }],
+            });
+        }
+        return;
+    }
+
+    // Wait for DOM
+    await nextTick();
+    
+    const container = document.getElementById('mini-map');
+    if (!container) {
+        console.warn('Mini-map container not found after tick, retrying in 100ms');
+        setTimeout(initMap, 100);
+        return;
+    }
+
+    const lat = incident.value.latitude;
+    const lng = incident.value.longitude;
+
+    const osmStyle = {
+        version: 8,
+        sources: {
+            osm: {
+                type: 'raster',
+                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; OpenStreetMap Contributors',
+                maxzoom: 19,
+            },
+        },
+        layers: [
+            {
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+            },
+        ],
+    };
+
+    map.value = new maplibregl.Map({
+        container: 'mini-map',
+        style: osmStyle as any,
+        center: [lng, lat],
+        zoom: 15,
+    });
+
+    map.value.on('load', () => {
+        if (!map.value) return;
+        
+        map.value.resize();
+
+        // 1. Add Zone Source and Layers
+        map.value.addSource('zones', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+        });
+        map.value.addLayer({
+            id: 'zones-fill',
+            type: 'fill',
+            source: 'zones',
+            paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 },
+        });
+        map.value.addLayer({
+            id: 'zones-line',
+            type: 'line',
+            source: 'zones',
+            paint: { 'line-color': ['get', 'color'], 'line-width': 2 },
+        });
+
+        if (zones.value.length) {
+            updateZonesSource();
+        }
+
+        // 2. Add Incident Point Source and Layer
+        map.value.addSource('incident-point', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: [{
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [lng, lat],
+                    },
+                }],
+            },
+        });
+
+        map.value.addLayer({
+            id: 'incident-marker-halo',
+            type: 'circle',
+            source: 'incident-point',
+            paint: {
+                'circle-radius': 12,
+                'circle-color': '#3b82f6',
+                'circle-opacity': 0.3,
+            },
+        });
+
+        map.value.addLayer({
+            id: 'incident-marker-core',
+            type: 'circle',
+            source: 'incident-point',
+            paint: {
+                'circle-radius': 6,
+                'circle-color': '#2563eb',
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff',
+            },
+        });
+    });
+};
 import {
 	IonContent,
 	IonHeader,
@@ -792,129 +924,7 @@ const updateZonesSource = () => {
 	}
 };
 
-const initMap = () => {
-	if (!incident.value?.latitude || !incident.value?.longitude) return;
-	if (map.value) {
-		// Just update center and marker
-		map.value.setCenter([incident.value.longitude, incident.value.latitude]);
-		map.value.setZoom(15);
-		// Update marker
-		const source = map.value.getSource('incident-point') as maplibregl.GeoJSONSource;
-		if (source) {
-			source.setData({
-				type: 'FeatureCollection',
-				features: [{
-					type: 'Feature',
-					properties: {},
-					geometry: {
-						type: 'Point',
-						coordinates: [incident.value.longitude, incident.value.latitude],
-					},
-				}],
-			});
-		}
-		return;
-	}
 
-	setTimeout(() => {
-		const el = document.getElementById('mini-map');
-		if (!el) return;
-
-		const lat = incident.value!.latitude!;
-		const lng = incident.value!.longitude!;
-
-		const osmStyle = {
-			version: 8,
-			sources: {
-				osm: {
-					type: 'raster',
-					tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-					tileSize: 256,
-					attribution: '&copy; OpenStreetMap Contributors',
-					maxzoom: 19,
-				},
-			},
-			layers: [
-				{
-					id: 'osm',
-					type: 'raster',
-					source: 'osm',
-				},
-			],
-		};
-
-		map.value = new maplibregl.Map({
-			container: 'mini-map',
-			style: osmStyle as any,
-			center: [lng, lat],
-			zoom: 15,
-		});
-
-		map.value.on('load', () => {
-			if (!map.value) return;
-			// 1. Add Zone Source and Layers
-			map.value.addSource('zones', {
-				type: 'geojson',
-				data: { type: 'FeatureCollection', features: [] },
-			});
-			map.value.addLayer({
-				id: 'zones-fill',
-				type: 'fill',
-				source: 'zones',
-				paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.2 },
-			});
-			map.value.addLayer({
-				id: 'zones-line',
-				type: 'line',
-				source: 'zones',
-				paint: { 'line-color': ['get', 'color'], 'line-width': 2 },
-			});
-
-			if (zones.value.length) {
-				updateZonesSource();
-			}
-
-			// 2. Add Incident Point Source and Layer
-			map.value.addSource('incident-point', {
-				type: 'geojson',
-				data: {
-					type: 'FeatureCollection',
-					features: [{
-						type: 'Feature',
-						properties: {},
-						geometry: {
-							type: 'Point',
-							coordinates: [lng, lat],
-						},
-					}],
-				},
-			});
-
-			map.value.addLayer({
-				id: 'incident-marker-halo',
-				type: 'circle',
-				source: 'incident-point',
-				paint: {
-					'circle-radius': 12,
-					'circle-color': '#3b82f6',
-					'circle-opacity': 0.3,
-				},
-			});
-
-			map.value.addLayer({
-				id: 'incident-marker-core',
-				type: 'circle',
-				source: 'incident-point',
-				paint: {
-					'circle-radius': 6,
-					'circle-color': '#2563eb',
-					'circle-stroke-width': 2,
-					'circle-stroke-color': '#ffffff',
-				},
-			});
-		});
-	}, 200);
-};
 
 onBeforeUnmount(() => {
 	if (map.value) {
